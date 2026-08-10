@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clients-web
+  labels:
+    app: clients-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clients-web
+  template:
+    metadata:
+      labels:
+        app: clients-web
+    spec:
+      containers:
+      - name: clients-web
+        image: localhost:5000/clients-web:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clients-web-service
+spec:
+  selector:
+    app: clients-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clients-web-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+  - host: client.transhola.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: clients-web-service
+            port:
+              number: 80

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osrm-backend
+  labels:
+    app: osrm-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: osrm-backend
+  template:
+    metadata:
+      labels:
+        app: osrm-backend
+    spec:
+      initContainers:
+        - name: osrm-data-builder
+          image: ghcr.io/project-osrm/osrm-backend:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ ! -f /data/monaco-latest.osrm ]; then
+                echo "Downloading Monaco OSM data..."
+                apt-get update && apt-get install -y curl
+                curl -L -o /data/monaco-latest.osm.pbf http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+                echo "Extracting graph..."
+                osrm-extract -p /opt/car.lua /data/monaco-latest.osm.pbf
+                echo "Partitioning graph..."
+                osrm-partition /data/monaco-latest.osrm
+                echo "Customizing graph..."
+                osrm-customize /data/monaco-latest.osrm
+                echo "Done."
+              else
+                echo "Data already exists."
+              fi
+          volumeMounts:
+            - name: osrm-data
+              mountPath: /data
+      containers:
+        - name: osrm-backend
+          image: ghcr.io/project-osrm/osrm-backend:latest
+          command: ["osrm-routed", "--algorithm", "mld", "/data/monaco-latest.osrm"]
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: osrm-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "256Mi"
+            limits:
+              memory: "1Gi"
+      volumes:
+        - name: osrm-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: osrm-car
+spec:
+  selector:
+    app: osrm-backend
+  ports:
+    - port: 5000
+      targetPort: 5000

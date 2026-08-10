@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kalman-engine
+  labels:
+    app: kalman-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kalman-engine
+  template:
+    metadata:
+      labels:
+        app: kalman-engine
+    spec:
+      containers:
+      - name: kalman-engine
+        image: localhost:5000/kalman-engine:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4025
+        env:
+        - name: PORT
+          value: "4025"
+        - name: SUPABASE_SERVICE_ROLE_KEY
+          value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
+        - name: SUPABASE_URL
+          value: "http://supabase-kong:8000"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: KAFKA_BROKERS
+          value: "redpanda:9092"
+        - name: REDPANDA_BROKERS
+          value: "redpanda:9092"
+        - name: MQTT_BROKER_URL
+          value: "tcp://emqx:1883"
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kalman-engine
+spec:
+  selector:
+    app: kalman-engine
+  ports:
+  - port: 4025
+    targetPort: 4025

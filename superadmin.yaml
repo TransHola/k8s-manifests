@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superadmin
+  labels:
+    app: superadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superadmin
+  template:
+    metadata:
+      labels:
+        app: superadmin
+    spec:
+      containers:
+      - name: superadmin
+        image: localhost:5000/superadmin:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superadmin-service
+spec:
+  selector:
+    app: superadmin
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: superadmin-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+  - host: admin.transhola.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: superadmin-service
+            port:
+              number: 80

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-operators
+  labels:
+    app: fleet-operators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fleet-operators
+  template:
+    metadata:
+      labels:
+        app: fleet-operators
+    spec:
+      containers:
+      - name: fleet-operators
+        image: localhost:5000/fleet-operators:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-operators-service
+spec:
+  selector:
+    app: fleet-operators
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fleet-operators-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+  - host: operator.transhola.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fleet-operators-service
+            port:
+              number: 80
