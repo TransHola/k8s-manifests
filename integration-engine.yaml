@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-engine
+  namespace: transhola
+  labels:
+    app: integration-engine
+    tier: integration
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: integration-engine
+  template:
+    metadata:
+      labels:
+        app: integration-engine
+    spec:
+      containers:
+      - name: integration-engine
+        image: localhost:5000/integration-engine:latest
+        ports:
+        - containerPort: 8089
+        env:
+        - name: PORT
+          value: "8089"
+        - name: NODE_ENV
+          value: "production"
+        - name: INTEGRATION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: transhola-secrets
+              key: INTEGRATION_SECRET
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "1024Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-engine
+  namespace: transhola
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8089
+    targetPort: 8089
+    name: http-ws
+  selector:
+    app: integration-engine
