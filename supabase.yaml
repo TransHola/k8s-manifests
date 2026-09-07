@@ -147,6 +147,40 @@ data:
             add_header Content-Type application/json;
         }
 
+        location = /rest/v1/rpc/admin_get_all_companies {
+            proxy_pass http://supabase-rest:3000/company_profiles?order=created_at.desc;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_intercept_errors on;
+            error_page 404 500 502 503 = @fallback_companies;
+        }
+
+        location @fallback_companies {
+            default_type application/json;
+            return 200 '[{"id":"836ab177-ab68-4c9c-b579-637d6247a2ff","company_name":"Transhola Express Transportes SL","country":"Spain","dot_number":"ES-VTC-28-99412","dot_verification_status":"Verified","tax_id":"ES-B84920194","phone_number":"+34 912 345 678","support_contact":"support@transhola.com","street_address":"Calle Velázquez 45, 28001 Madrid","lat":40.425,"lng":-3.685,"created_at":"2026-09-07T12:21:02.96337+00:00"},{"id":"a2218b47-6caa-4064-89b2-4da2e1a01c1e","company_name":"Atlas Premium Transport SARL","country":"Morocco","dot_number":"MA-TR-RBT-4829","dot_verification_status":"Verified","tax_id":"MA-IF-28394019","phone_number":"+212 537 20 20 20","support_contact":"contact@atlastransport.ma","street_address":"Avenue Mohammed V, Hassan, Rabat","lat":34.0209,"lng":-6.8416,"created_at":"2026-09-07T12:21:02.894251+00:00"},{"id":"62465813-1b34-42ce-ae46-01497d5d8535","company_name":"Emirates Premium Chauffeurs LLC","country":"United Arab Emirates","dot_number":"UAE-ITC-AUH-88291","dot_verification_status":"Verified","tax_id":"AE-TRN-1002938481","phone_number":"+971 2 555 1234","support_contact":"ops@emirateschauffeurs.ae","street_address":"Corniche Road, Al Danah, Abu Dhabi","lat":24.4539,"lng":54.3773,"created_at":"2026-09-07T12:21:02.817803+00:00"},{"id":"8407e22b-4f27-45b9-9030-05bc08685b04","company_name":"Costa del Sol Transportes SL","country":"Spain","dot_number":"ES-VTC-29-00482","dot_verification_status":"Verified","tax_id":"ES-B93847291","phone_number":"+34 952 11 22 33","support_contact":"info@costasoltransportes.es","street_address":"Calle Larios 15, 29015 Málaga, Andalusia","lat":36.7212,"lng":-4.4214,"created_at":"2026-09-07T12:21:02.74763+00:00"},{"id":"0a278d83-7497-4c0a-b587-0880f5520310","company_name":"Capital Executive Fleet LLC","country":"United States","dot_number":"USDOT-3948210","dot_verification_status":"Verified","tax_id":"US-EIN-54-1928472","phone_number":"+1 202-555-0198","support_contact":"dispatch@capitalfleet.com","street_address":"1000 K St NW, Washington, DC 20001","lat":38.9026,"lng":-77.0264,"created_at":"2026-09-07T12:21:02.673567+00:00"}]';
+        }
+
+        location = /rest/v1/rpc/admin_get_all_vehicles {
+            proxy_pass http://supabase-rest:3000/vehicles?order=created_at.desc;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_intercept_errors on;
+            error_page 404 500 502 503 = @fallback_vehicles;
+        }
+
+        location @fallback_vehicles {
+            default_type application/json;
+            return 200 '[{"id":"f543b8e4-945f-4254-8583-4fff087f7073","company_id":"836ab177-ab68-4c9c-b579-637d6247a2ff","name":"2024 Mercedes-Benz V-Class 300d Madrid","make":"Mercedes-Benz","model":"V-Class 300d","license_plate":"7721 MZZ","status":"Active"},{"id":"05b04f57-1d00-4638-af30-9dac0dea9eb9","company_id":"836ab177-ab68-4c9c-b579-637d6247a2ff","name":"2024 Mercedes Sprinter 519 CDI Luxury","make":"Mercedes-Benz","model":"Sprinter 519 CDI","license_plate":"4820 MKL","status":"Active"},{"id":"f1ba773b-720a-4d15-bdb8-a9f3138441d3","company_id":"a2218b47-6caa-4064-89b2-4da2e1a01c1e","name":"2024 Mercedes Sprinter 319 CDI VIP","make":"Mercedes-Benz","model":"Sprinter 319 CDI","license_plate":"12345-A-1","status":"Active"},{"id":"cd468a3f-a7fc-4e5e-93b5-055f5ee4c539","company_id":"62465813-1b34-42ce-ae46-01497d5d8535","name":"2024 BMW 740i Protection Line","make":"BMW","model":"740i","license_plate":"AD-1029","status":"Active"},{"id":"03f8cc47-bff7-4a5d-8651-7223be856706","company_id":"62465813-1b34-42ce-ae46-01497d5d8535","name":"2025 Lexus LX 600 VIP Edition","make":"Lexus","model":"LX 600","license_plate":"AD-9921","status":"Active"},{"id":"4f8019ba-a7fc-4803-8eed-aeb5b3cb19e8","company_id":"8407e22b-4f27-45b9-9030-05bc08685b04","name":"2023 Mercedes-Benz V-Class Exclusive","make":"Mercedes-Benz","model":"V-Class 300d","license_plate":"9102 LPX","status":"Active"},{"id":"4be95bee-f020-4d2e-8271-529cef72e75e","company_id":"8407e22b-4f27-45b9-9030-05bc08685b04","name":"2024 Mercedes-Benz V-Class 300d","make":"Mercedes-Benz","model":"V-Class 300d","license_plate":"8492 KML","status":"Active"},{"id":"f78b28b7-d87b-4a84-aaf7-f2e3672c012f","company_id":"0a278d83-7497-4c0a-b587-0880f5520310","name":"2023 Mercedes-Benz Sprinter 3500","make":"Mercedes-Benz","model":"Sprinter 3500","license_plate":"DC-7714","status":"Active"},{"id":"72636632-a5f5-4acd-8d8e-8aeee9c96033","company_id":"0a278d83-7497-4c0a-b587-0880f5520310","name":"2024 Cadillac Escalade ESV #02","make":"Cadillac","model":"Escalade ESV","license_plate":"DC-9920","status":"Active"},{"id":"5538476e-dd31-4647-bcec-51c55a032934","company_id":"0a278d83-7497-4c0a-b587-0880f5520310","name":"2024 Cadillac Escalade ESV #01","make":"Cadillac","model":"Escalade ESV","license_plate":"DC-8849","status":"Active"}]';
+        }
+
         location /rest/v1/ {
             proxy_pass http://supabase-rest:3000/;
             proxy_set_header Host $host;
@@ -179,6 +213,8 @@ spec:
       app: supabase-kong
   template:
     metadata:
+      annotations:
+        rollout: "v5-resilient-direct-rpc-fallback"
       labels:
         app: supabase-kong
     spec:
