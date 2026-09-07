@@ -24,6 +24,8 @@ spec:
       app: supabase-db
   template:
     metadata:
+      annotations:
+        rollout: "v3-init-rpcs"
       labels:
         app: supabase-db
     spec:
@@ -86,6 +88,8 @@ spec:
       app: supabase-rest
   template:
     metadata:
+      annotations:
+        rollout: "v3-init-rpcs"
       labels:
         app: supabase-rest
     spec:
