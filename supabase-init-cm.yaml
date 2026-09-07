@@ -1589,7 +1589,44 @@ data:
     CREATE INDEX IF NOT EXISTS idx_driver_leaves_driver_id ON public.driver_leaves(driver_id);
     CREATE INDEX IF NOT EXISTS idx_driver_leaves_dates ON public.driver_leaves(start_date, end_date);
 
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS unavailable_until TIMESTAMPTZ;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS status_reason TEXT;
+
+    CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        vehicle_id UUID NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
+        company_id UUID REFERENCES public.company_profiles(id) ON DELETE CASCADE,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ NOT NULL,
+        status TEXT DEFAULT 'maintenance',
+        reason TEXT,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vehicle_schedules_vehicle_id ON public.vehicle_schedules(vehicle_id);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_schedules_dates ON public.vehicle_schedules(start_time, end_time);
+
+    CREATE TABLE IF NOT EXISTS public.dispatch_assignments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE,
+        company_id UUID REFERENCES public.company_profiles(id) ON DELETE CASCADE,
+        driver_id UUID REFERENCES public.drivers(id) ON DELETE SET NULL,
+        vehicle_id UUID REFERENCES public.vehicles(id) ON DELETE SET NULL,
+        start_time TIMESTAMPTZ,
+        end_time TIMESTAMPTZ,
+        status TEXT DEFAULT 'assigned',
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_driver_id ON public.dispatch_assignments(driver_id);
+    CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_vehicle_id ON public.dispatch_assignments(vehicle_id);
+    CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_dates ON public.dispatch_assignments(start_time, end_time);
+
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+
 
 
