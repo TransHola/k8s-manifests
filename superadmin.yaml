@@ -11,6 +11,8 @@ spec:
       app: superadmin
   template:
     metadata:
+      annotations:
+        rollout: "v5-high-speed-operators"
       labels:
         app: superadmin
     spec:
