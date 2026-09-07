@@ -1590,7 +1590,9 @@ data:
     CREATE INDEX IF NOT EXISTS idx_driver_leaves_dates ON public.driver_leaves(start_date, end_date);
 
     ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS unavailable_until TIMESTAMPTZ;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS unavailable_from TIMESTAMPTZ;
     ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS status_reason TEXT;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS current_status_id UUID REFERENCES public.vehicle_statuses(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
