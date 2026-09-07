@@ -214,3 +214,54 @@ spec:
   ports:
   - port: 8000
     targetPort: 8000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: supabase-migration-job-v2
+  namespace: default
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migrator
+        image: postgres:16-alpine
+        env:
+        - name: PGPASSWORD
+          value: "postgres"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until pg_isready -h supabase-db -p 5432 -U postgres -d postgres; do
+            echo "Waiting for supabase-db..."
+            sleep 2
+          done
+          echo "Applying migrations and RPCs to supabase-db..."
+          psql -h supabase-db -p 5432 -U postgres -d postgres << 'EOF'
+          CREATE OR REPLACE FUNCTION public.admin_get_all_companies()
+          RETURNS SETOF public.company_profiles
+          LANGUAGE sql
+          STABLE
+          SECURITY DEFINER
+          AS $$
+            SELECT * FROM public.company_profiles ORDER BY created_at DESC;
+          $$;
+
+          CREATE OR REPLACE FUNCTION public.admin_get_all_vehicles()
+          RETURNS SETOF public.vehicles
+          LANGUAGE sql
+          STABLE
+          SECURITY DEFINER
+          AS $$
+            SELECT * FROM public.vehicles ORDER BY created_at DESC;
+          $$;
+
+          GRANT EXECUTE ON FUNCTION public.admin_get_all_companies() TO postgres, anon, authenticated, service_role;
+          GRANT EXECUTE ON FUNCTION public.admin_get_all_vehicles() TO postgres, anon, authenticated, service_role;
+
+          NOTIFY pgrst, 'reload schema';
+          EOF
+          echo "Migration complete and schema reload signaled!"
