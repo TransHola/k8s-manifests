@@ -1624,6 +1624,59 @@ data:
     CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_driver_id ON public.dispatch_assignments(driver_id);
     CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_vehicle_id ON public.dispatch_assignments(vehicle_id);
     CREATE INDEX IF NOT EXISTS idx_dispatch_assignments_dates ON public.dispatch_assignments(start_time, end_time);
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS series text;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS pax_capacity integer DEFAULT 1;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS powering_type text DEFAULT 'Diesel';
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS consumption_rate numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_worth numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_height numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_length numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_width numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_weight numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS num_tires integer;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS estimated_tire_cost numeric;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS other_notes text;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS is_permanent_tag boolean DEFAULT false;
+    ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS amenities jsonb DEFAULT '{}'::jsonb;
+
+    CREATE TABLE IF NOT EXISTS public.vehicle_specs (
+        vehicle_id UUID PRIMARY KEY REFERENCES public.vehicles(id) ON DELETE CASCADE,
+        pax_capacity INTEGER DEFAULT 1,
+        powering_type TEXT DEFAULT 'Diesel',
+        consumption_rate NUMERIC,
+        num_tires INTEGER,
+        estimated_tire_cost NUMERIC,
+        vehicle_height NUMERIC,
+        vehicle_length NUMERIC,
+        vehicle_width NUMERIC,
+        vehicle_weight NUMERIC,
+        other_notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.pending_vehicle_presets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID REFERENCES public.company_profiles(id) ON DELETE CASCADE,
+        country TEXT,
+        vehicle_type TEXT,
+        make TEXT,
+        model TEXT,
+        series TEXT,
+        powering_type TEXT,
+        status TEXT DEFAULT 'pending',
+        dimensions JSONB DEFAULT '{}'::jsonb,
+        amenities JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.vehicle_series (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        model_id UUID REFERENCES public.vehicle_models(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
