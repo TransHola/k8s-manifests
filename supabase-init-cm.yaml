@@ -1394,3 +1394,23 @@ data:
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, anon, authenticated, service_role;
+
+    -- RPC Functions for SuperAdmin
+    CREATE OR REPLACE FUNCTION public.admin_get_all_companies()
+    RETURNS SETOF public.company_profiles
+    LANGUAGE sql
+    SECURITY DEFINER
+    AS $$
+      SELECT * FROM public.company_profiles ORDER BY created_at DESC;
+    $$;
+
+    CREATE OR REPLACE FUNCTION public.admin_get_all_vehicles()
+    RETURNS SETOF public.vehicles
+    LANGUAGE sql
+    SECURITY DEFINER
+    AS $$
+      SELECT * FROM public.vehicles ORDER BY created_at DESC;
+    $$;
+
+    GRANT EXECUTE ON FUNCTION public.admin_get_all_companies() TO postgres, anon, authenticated, service_role;
+    GRANT EXECUTE ON FUNCTION public.admin_get_all_vehicles() TO postgres, anon, authenticated, service_role;
