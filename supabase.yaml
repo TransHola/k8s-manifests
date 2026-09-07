@@ -159,7 +159,7 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: supabase-kong-nginx
+  name: supabase-kong-nginx-v9
   namespace: default
 data:
   default.conf: |
@@ -217,7 +217,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "v7-direct-200-rpc-return"
+        rollout: "v9-direct-200-rpc-return"
       labels:
         app: supabase-kong
     spec:
@@ -240,7 +240,7 @@ spec:
       volumes:
       - name: nginx-config
         configMap:
-          name: supabase-kong-nginx
+          name: supabase-kong-nginx-v9
 ---
 apiVersion: v1
 kind: Service
@@ -253,63 +253,3 @@ spec:
   ports:
   - port: 8000
     targetPort: 8000
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: supabase-migration-v3
-  namespace: default
-spec:
-  backoffLimit: 3
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: OnFailure
-      containers:
-      - name: migrator
-        image: postgis/postgis:16-alpine
-        env:
-        - name: PGPASSWORD
-          value: "postgres"
-        command:
-        - /bin/sh
-        - -c
-        - |
-          until pg_isready -h supabase-db -p 5432 -U postgres -d postgres; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Connected to postgres! Applying schema and data from init.sql..."
-          psql -h supabase-db -p 5432 -U postgres -d postgres -f /scripts/init.sql || true
-          echo "Applying RPC functions directly..."
-          psql -h supabase-db -p 5432 -U postgres -d postgres -c "
-            CREATE OR REPLACE FUNCTION public.admin_get_all_companies()
-            RETURNS SETOF public.company_profiles
-            LANGUAGE sql
-            STABLE
-            SECURITY DEFINER
-            AS \$\$ SELECT * FROM public.company_profiles ORDER BY created_at DESC; \$\$;
-
-            CREATE OR REPLACE FUNCTION public.admin_get_all_vehicles()
-            RETURNS SETOF public.vehicles
-            LANGUAGE sql
-            STABLE
-            SECURITY DEFINER
-            AS \$\$ SELECT * FROM public.vehicles ORDER BY created_at DESC; \$\$;
-
-            GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
-            GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
-            GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
-            GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, anon, authenticated, service_role;
-            GRANT EXECUTE ON FUNCTION public.admin_get_all_companies() TO postgres, anon, authenticated, service_role;
-            GRANT EXECUTE ON FUNCTION public.admin_get_all_vehicles() TO postgres, anon, authenticated, service_role;
-            NOTIFY pgrst, 'reload schema';
-          "
-          echo "Schema migration and NOTIFY pgrst successful!"
-        volumeMounts:
-        - name: init-sql
-          mountPath: /scripts
-      volumes:
-      - name: init-sql
-        configMap:
-          name: supabase-init-sql
