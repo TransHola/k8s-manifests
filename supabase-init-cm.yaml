@@ -5,6 +5,21 @@ metadata:
   namespace: default
 data:
   init.sql: |
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "postgis";
+    
+    DO $ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = "anon") THEN
+        CREATE ROLE anon NOLOGIN;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = "authenticated") THEN
+        CREATE ROLE authenticated NOLOGIN;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = "service_role") THEN
+        CREATE ROLE service_role NOLOGIN;
+      END IF;
+    END $;
     --
     -- PostgreSQL database dump
     --
@@ -1374,3 +1389,8 @@ data:
     --
     -- PostgreSQL database dump complete
     --
+
+    GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+    GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, anon, authenticated, service_role;
