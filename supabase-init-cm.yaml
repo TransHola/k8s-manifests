@@ -1748,6 +1748,21 @@ data:
         created_at TIMESTAMPTZ DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS public.legal_agreements (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL,
+        audience TEXT NOT NULL DEFAULT 'fleet-operator',
+        description TEXT,
+        content TEXT,
+        version TEXT NOT NULL DEFAULT '1.0',
+        entity_type TEXT NOT NULL DEFAULT 'global',
+        entity_id TEXT NOT NULL DEFAULT 'GLOBAL',
+        enforcement_action TEXT NOT NULL DEFAULT 'block_dispatch',
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+    );
+
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 
