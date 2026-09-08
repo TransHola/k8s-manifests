@@ -1422,12 +1422,19 @@ data:
         DELETE FROM public.country_license_plate_regions 
         WHERE country_config_id IN (v_us_id, v_es_id, v_ae_id, v_ma_id);
 
+
         --------------------------------------------------------------------------------
         -- 1. SPAIN (ES)
         -- Format: 0000 · BBB (4 digits + 3 consonants, vowels excluded)
-        -- Deduplicated Formats with Tag Relations:
-        --  1) VTC - Chauffeur & Private Hire (Blue Rear Plate #1E3A8A) -> Tags: Sedan, SUV, Van
-        --  2) Servicio Público (SP) - Bus & Minibus (White Plate #FFFFFF + SP) -> Tags: Minibus, Bus, Coach
+        -- 1-to-1 Service <-> Vehicle Type relations:
+        --  1) VTC Chauffeur:
+        --     - VTC Standard <-> Sedan
+        --     - VTC Executive <-> SUV
+        --     - VTC Van <-> Van
+        --  2) Servicio Público (SP):
+        --     - Minibús Escolar y Traslados <-> Minibus
+        --     - Línea Regular de Pasajeros <-> Bus
+        --     - Autocar Gran Capacidad <-> Coach
         --------------------------------------------------------------------------------
         IF v_es_id IS NOT NULL THEN
             FOR r_rec IN 
@@ -1443,17 +1450,22 @@ data:
                 VALUES (v_es_id, r_rec.region_name, r_rec.abbreviation, r_rec.display_order)
                 RETURNING id INTO r_id;
 
-                -- 1. VTC Chauffeur Plate (Sedan, SUV, Van)
+                -- 1. VTC Chauffeur Plate (1-to-1 relations: Sedan, SUV, Van)
                 INSERT INTO public.country_license_plate_categories (
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                    vehicle_types, service_types
+                    vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
                     r_id, 
                     'VTC - Chauffeur & Private Hire', 
                     'Vehículo de Turismo con Conductor (Hasta 9 Plazas)', 
                     true, '#1E3A8A', 'VTC Blue', true, 'VTC', false,
                     ARRAY['Sedan', 'SUV', 'Van'],
-                    ARRAY['VTC', 'Chauffeur', 'Private Hire']
+                    ARRAY['VTC Standard', 'VTC Executive', 'VTC Van'],
+                    '[
+                        {"service": "VTC Standard", "vehicle_type": "Sedan"},
+                        {"service": "VTC Executive", "vehicle_type": "SUV"},
+                        {"service": "VTC Van", "vehicle_type": "Van"}
+                    ]'::jsonb
                 ) RETURNING id INTO c_id;
 
                 INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
@@ -1467,17 +1479,22 @@ data:
                 INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
                 VALUES (s_id, 'Letters', 'BBB', '3', false, '42', true);
 
-                -- 2. Servicio Público (SP) Plate (Minibus, Bus, Coach)
+                -- 2. Servicio Público (SP) Plate (1-to-1 relations: Minibus, Bus, Coach)
                 INSERT INTO public.country_license_plate_categories (
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                    vehicle_types, service_types
+                    vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
                     r_id, 
                     'Servicio Público (SP) - Bus & Minibus', 
                     'Transporte Público de Pasajeros en Minibús y Autocar (10+ Plazas)', 
                     false, '#FFFFFF', 'Standard White', true, 'SP', false,
                     ARRAY['Minibus', 'Bus', 'Coach'],
-                    ARRAY['Public Passenger Transit', 'Regular & Discretionary Service', 'Airport Shuttle']
+                    ARRAY['Minibús Escolar y Traslados', 'Línea Regular de Pasajeros', 'Autocar Gran Capacidad'],
+                    '[
+                        {"service": "Minibús Escolar y Traslados", "vehicle_type": "Minibus"},
+                        {"service": "Línea Regular de Pasajeros", "vehicle_type": "Bus"},
+                        {"service": "Autocar Gran Capacidad", "vehicle_type": "Coach"}
+                    ]'::jsonb
                 ) RETURNING id INTO c_id;
 
                 INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
@@ -1495,23 +1512,28 @@ data:
 
         --------------------------------------------------------------------------------
         -- 2. UNITED STATES (US)
-        -- Deduplicated Formats with Tag Relations:
-        --  1) Chauffeur / Livery Plate -> Tags: Sedan, SUV, Van
-        --  2) Commercial Bus & Shuttle Plate -> Tags: Minibus, Bus, Coach
+        -- 1-to-1 Service <-> Vehicle Type relations:
+        --  1) Chauffeur / Livery: Sedan, SUV, Van
+        --  2) Commercial Bus: Minibus, Bus, Coach
         --------------------------------------------------------------------------------
         IF v_us_id IS NOT NULL THEN
             -- Region 1: New York (NY)
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_us_id, 'New York', 'NY', 1) RETURNING id INTO r_id;
 
-            -- NY TLC Livery (Sedan, SUV, Van)
+            -- NY TLC Livery
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'TLC Livery & Limousine', 'Taxi & Limousine Commission For-Hire (Up to 14 Pax)', true, '#F59E0B', 'TLC Gold', true, 'TLC', false,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['TLC Livery', 'Black Car', 'Limousine']
+                ARRAY['TLC Livery', 'Black Car / Executive SUV', 'TLC Passenger Van'],
+                '[
+                    {"service": "TLC Livery", "vehicle_type": "Sedan"},
+                    {"service": "Black Car / Executive SUV", "vehicle_type": "SUV"},
+                    {"service": "TLC Passenger Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1524,14 +1546,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Text', 'C', '1', true, '36', true);
 
-            -- NY Commercial Bus & Shuttle (Minibus, Bus, Coach)
+            -- NY Commercial Bus & Shuttle
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Bus & Shuttle', 'Commercial Passenger Minibus, Shuttle & Coach (15+ Pax)', false, '#FFFFFF', 'Standard White', true, 'BUS', false,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Commercial Passenger Transit', 'Charter Bus', 'Airport Shuttle']
+                ARRAY['Airport & Hotel Shuttle', 'Commercial Transit Bus', 'Charter Motorcoach'],
+                '[
+                    {"service": "Airport & Hotel Shuttle", "vehicle_type": "Minibus"},
+                    {"service": "Commercial Transit Bus", "vehicle_type": "Bus"},
+                    {"service": "Charter Motorcoach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1549,14 +1576,19 @@ data:
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_us_id, 'California', 'CA', 2) RETURNING id INTO r_id;
 
-            -- CA TCP Chauffeur (Sedan, SUV, Van)
+            -- CA TCP Chauffeur
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'TCP Executive Chauffeur', 'Transportation Charter Party (Sedan, SUV & Executive Van)', false, '#FFFFFF', 'Standard White', true, 'TCP', false,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['TCP Chauffeur', 'Executive Transport', 'Livery']
+                ARRAY['TCP Executive Sedan', 'TCP Luxury SUV', 'TCP Executive Passenger Van'],
+                '[
+                    {"service": "TCP Executive Sedan", "vehicle_type": "Sedan"},
+                    {"service": "TCP Luxury SUV", "vehicle_type": "SUV"},
+                    {"service": "TCP Executive Passenger Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1569,14 +1601,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Category Abbr. (EN)', 'TCP', '3', true, '14', true);
 
-            -- CA Commercial Bus & Shuttle (Minibus, Bus, Coach)
+            -- CA Commercial Bus & Shuttle
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Bus & Shuttle', 'Commercial Passenger Shuttle, Minibus & Motorcoach (15+ Pax)', false, '#FFFFFF', 'Standard White', true, 'BUS', false,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Charter Party Bus', 'Airport Shuttle', 'Commercial Transit']
+                ARRAY['Airport & Corporate Shuttle', 'Commercial Transit Bus', 'Charter Party Motorcoach'],
+                '[
+                    {"service": "Airport & Corporate Shuttle", "vehicle_type": "Minibus"},
+                    {"service": "Commercial Transit Bus", "vehicle_type": "Bus"},
+                    {"service": "Charter Party Motorcoach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1594,14 +1631,19 @@ data:
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_us_id, 'Florida', 'FL', 3) RETURNING id INTO r_id;
 
-            -- FL For-Hire (Sedan, SUV, Van)
+            -- FL For-Hire
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'For-Hire Luxury Transport', 'Commercial For-Hire Passenger (Sedan, SUV & Executive Van)', true, '#047857', 'Sunshine Green', true, 'HIRE', false,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['For-Hire Passenger', 'Luxury Chauffeur']
+                ARRAY['For-Hire Luxury Sedan', 'For-Hire Executive SUV', 'For-Hire Passenger Van'],
+                '[
+                    {"service": "For-Hire Luxury Sedan", "vehicle_type": "Sedan"},
+                    {"service": "For-Hire Executive SUV", "vehicle_type": "SUV"},
+                    {"service": "For-Hire Passenger Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1614,14 +1656,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Region (EN)', 'FLORIDA', '7', false, '14', true);
 
-            -- FL Commercial Bus & Shuttle (Minibus, Bus, Coach)
+            -- FL Commercial Bus & Shuttle
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Bus & Shuttle', 'Commercial Passenger Shuttle, Minibus & Motorcoach (15+ Pax)', false, '#FFFFFF', 'Standard White', true, 'BUS', false,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Commercial Bus', 'Airport Shuttle', 'Charter Coach']
+                ARRAY['Commercial Shuttle', 'Commercial Passenger Bus', 'Charter Tour Coach'],
+                '[
+                    {"service": "Commercial Shuttle", "vehicle_type": "Minibus"},
+                    {"service": "Commercial Passenger Bus", "vehicle_type": "Bus"},
+                    {"service": "Charter Tour Coach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1639,14 +1686,19 @@ data:
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_us_id, 'District of Columbia', 'DC', 4) RETURNING id INTO r_id;
 
-            -- DC Livery (Sedan, SUV, Van)
+            -- DC Livery
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Executive Livery & Limousine', 'Executive Livery, Chauffeur & Executive Van', true, '#1E293B', 'Executive Navy', true, 'LIMO', false,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['Livery & Limousine', 'Executive Chauffeur']
+                ARRAY['Executive Livery Sedan', 'Diplomatic / Executive SUV', 'Executive Passenger Van'],
+                '[
+                    {"service": "Executive Livery Sedan", "vehicle_type": "Sedan"},
+                    {"service": "Diplomatic / Executive SUV", "vehicle_type": "SUV"},
+                    {"service": "Executive Passenger Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1659,14 +1711,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Region Abbr. (EN)', 'DC', '2', true, '20', true);
 
-            -- DC Commercial Bus (Minibus, Bus, Coach)
+            -- DC Commercial Bus
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Bus & Motorcoach', 'Charter Bus, Minibus & Large Motorcoach (15+ Pax)', false, '#FFFFFF', 'Standard White', true, 'BUS', false,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Commercial Passenger Bus', 'Charter & Shuttle']
+                ARRAY['Passenger Shuttle', 'Commercial Transit Bus', 'Charter Motorcoach'],
+                '[
+                    {"service": "Passenger Shuttle", "vehicle_type": "Minibus"},
+                    {"service": "Commercial Transit Bus", "vehicle_type": "Bus"},
+                    {"service": "Charter Motorcoach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1682,23 +1739,28 @@ data:
 
         --------------------------------------------------------------------------------
         -- 3. UNITED ARAB EMIRATES (AE)
-        -- Deduplicated Formats with Tag Relations:
-        --  1) Limousine & Luxury Chauffeur Plate -> Tags: Sedan, SUV, Van
-        --  2) Commercial Passenger Bus & Coach Plate -> Tags: Minibus, Bus, Coach
+        -- 1-to-1 Service <-> Vehicle Type relations:
+        --  1) Limousine & Luxury: Sedan, SUV, Van
+        --  2) Commercial Bus & Coach: Minibus, Bus, Coach
         --------------------------------------------------------------------------------
         IF v_ae_id IS NOT NULL THEN
             -- Dubai
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_ae_id, 'Dubai', 'DXB', 1) RETURNING id INTO r_id;
 
-            -- 1. Dubai Limousine (Sedan, SUV, Van)
+            -- 1. Dubai Limousine
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Limousine & Luxury Chauffeur', 'ليموزين فاخرة ونقل سياحي تنفيذي (سيدان، دفع رباعي، فان)', true, '#1E293B', 'Dubai Executive', true, 'LIMO', true,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['Limousine', 'Executive Chauffeur', 'VIP Transport']
+                ARRAY['VIP Luxury Sedan', 'Executive Luxury SUV', 'Executive Chauffeur Van'],
+                '[
+                    {"service": "VIP Luxury Sedan", "vehicle_type": "Sedan"},
+                    {"service": "Executive Luxury SUV", "vehicle_type": "SUV"},
+                    {"service": "Executive Chauffeur Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1719,14 +1781,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Category (AR)', 'ليموزين', '7', false, '14', true);
 
-            -- 2. Dubai Commercial Bus & Coach (Minibus, Bus, Coach)
+            -- 2. Dubai Commercial Bus & Coach
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Passenger Bus & Coach', 'حافلة ركاب وميني باص تجاري ونقل سياحي (15+ راكب)', false, '#FFFFFF', 'Standard White', true, 'BUS', true,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Commercial Bus', 'Passenger Shuttle', 'Tourist Coach']
+                ARRAY['Commercial Passenger Minibus', 'Commercial City Transit Bus', 'Tourist & Intercity Coach'],
+                '[
+                    {"service": "Commercial Passenger Minibus", "vehicle_type": "Minibus"},
+                    {"service": "Commercial City Transit Bus", "vehicle_type": "Bus"},
+                    {"service": "Tourist & Intercity Coach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1752,14 +1819,19 @@ data:
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_ae_id, 'Abu Dhabi', 'AUH', 2) RETURNING id INTO r_id;
 
-            -- 1. Abu Dhabi Limousine (Sedan, SUV, Van)
+            -- 1. Abu Dhabi Limousine
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Chauffeur & Limousine', 'نقل سياحي وتجاري فاخر (سيدان ودفع رباعي وفان تنفيذي)', true, '#DC2626', 'Abu Dhabi Red', true, 'LIMO', true,
                 ARRAY['Sedan', 'SUV', 'Van'],
-                ARRAY['Commercial Chauffeur', 'Luxury Limousine']
+                ARRAY['Commercial Luxury Sedan', 'Executive Luxury SUV', 'Executive Chauffeur Van'],
+                '[
+                    {"service": "Commercial Luxury Sedan", "vehicle_type": "Sedan"},
+                    {"service": "Executive Luxury SUV", "vehicle_type": "SUV"},
+                    {"service": "Executive Chauffeur Van", "vehicle_type": "Van"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1776,14 +1848,19 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Number', '00000', '5', false, '44', true);
 
-            -- 2. Abu Dhabi Commercial Bus & Coach (Minibus, Bus, Coach)
+            -- 2. Abu Dhabi Commercial Bus & Coach
             INSERT INTO public.country_license_plate_categories (
                 plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                vehicle_types, service_types
+                vehicle_types, service_types, service_vehicle_relations
             ) VALUES (
                 r_id, 'Commercial Passenger Bus & Coach', 'حافلة ركاب وميني باص تجاري ونقل مشترك (15+ راكب)', false, '#FFFFFF', 'Standard White', true, 'BUS', true,
                 ARRAY['Minibus', 'Bus', 'Coach'],
-                ARRAY['Commercial Passenger Bus', 'Charter Coach', 'Staff Shuttle']
+                ARRAY['Commercial Minibus & Staff Shuttle', 'Commercial Passenger Bus', 'Inter-Emirates Charter Coach'],
+                '[
+                    {"service": "Commercial Minibus & Staff Shuttle", "vehicle_type": "Minibus"},
+                    {"service": "Commercial Passenger Bus", "vehicle_type": "Bus"},
+                    {"service": "Inter-Emirates Charter Coach", "vehicle_type": "Coach"}
+                ]'::jsonb
             ) RETURNING id INTO c_id;
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1804,9 +1881,9 @@ data:
         --------------------------------------------------------------------------------
         -- 4. MOROCCO (MA)
         -- Format: 00000 | أ / د | 00
-        -- Deduplicated Formats with Tag Relations:
-        --  1) Transport Touristique (Série 'أ') -> Tags: Sedan, SUV, Van
-        --  2) Transport Public de Voyageurs (Série 'د') -> Tags: Minibus, Bus, Coach
+        -- 1-to-1 Service <-> Vehicle Type relations:
+        --  1) Transport Touristique (Série 'أ'): Sedan, SUV, Van
+        --  2) Transport Public de Voyageurs (Série 'د'): Minibus, Bus, Coach
         --------------------------------------------------------------------------------
         IF v_ma_id IS NOT NULL THEN
             FOR r_rec IN 
@@ -1822,14 +1899,19 @@ data:
                 VALUES (v_ma_id, r_rec.region_name, r_rec.abbreviation, r_rec.display_order)
                 RETURNING id INTO r_id;
 
-                -- 1. Transport Touristique (Sedan, SUV, Van)
+                -- 1. Transport Touristique (1-to-1 relations: Sedan, SUV, Van)
                 INSERT INTO public.country_license_plate_categories (
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                    vehicle_types, service_types
+                    vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
                     r_id, 'Transport Touristique (TGR)', 'النقل السياحي الفاخر (سيارات سيدان ودفع رباعي وفان تنفيذي)', true, '#047857', 'Chauffeur Green', true, 'TGR', true,
                     ARRAY['Sedan', 'SUV', 'Van'],
-                    ARRAY['Transport Touristique (T.G.R)', 'Chauffeur Privé']
+                    ARRAY['Transport Touristique Berline', 'Transport Touristique SUV 4x4', 'Transport Touristique Minivan'],
+                    '[
+                        {"service": "Transport Touristique Berline", "vehicle_type": "Sedan"},
+                        {"service": "Transport Touristique SUV 4x4", "vehicle_type": "SUV"},
+                        {"service": "Transport Touristique Minivan", "vehicle_type": "Van"}
+                    ]'::jsonb
                 ) RETURNING id INTO c_id;
                 INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
                 INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1842,14 +1924,19 @@ data:
                 INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
                 VALUES (s_id, 'Region Abbr. (EN)', r_rec.abbreviation, '2', false, '38', true);
 
-                -- 2. Transport Public de Voyageurs (Minibus, Bus, Coach)
+                -- 2. Transport Public de Voyageurs (1-to-1 relations: Minibus, Bus, Coach)
                 INSERT INTO public.country_license_plate_categories (
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
-                    vehicle_types, service_types
+                    vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
                     r_id, 'Transport Public de Voyageurs', 'حافلة نقل المسافرين والميني باص والنقل بين المدن (سلسلة د)', false, '#FFFFFF', 'Standard White', true, 'BUS', true,
                     ARRAY['Minibus', 'Bus', 'Coach'],
-                    ARRAY['Transport Public de Voyageurs', 'Navette & Minibus', 'Autocar Interurbain']
+                    ARRAY['Minibus & Navette Voyageurs', 'Transport Public Urbain & Périurbain', 'Autocar de Voyageurs Interurbain'],
+                    '[
+                        {"service": "Minibus & Navette Voyageurs", "vehicle_type": "Minibus"},
+                        {"service": "Transport Public Urbain & Périurbain", "vehicle_type": "Bus"},
+                        {"service": "Autocar de Voyageurs Interurbain", "vehicle_type": "Coach"}
+                    ]'::jsonb
                 ) RETURNING id INTO c_id;
                 INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
                 INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1864,7 +1951,7 @@ data:
             END LOOP;
         END IF;
 
-        RAISE NOTICE 'Successfully seeded authentic deduplicated License Plate Formats with Vehicle Types and Service Types tag relations!';
+        RAISE NOTICE 'Successfully seeded authentic deduplicated License Plate Formats with 1-to-1 Vehicle Type <-> Service Type tag relations!';
     END $$;
 
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
@@ -2197,6 +2284,7 @@ data:
         bilingual BOOLEAN DEFAULT false,
         vehicle_types TEXT[] DEFAULT '{}',
         service_types TEXT[] DEFAULT '{}',
+        service_vehicle_relations JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ DEFAULT now()
     );
 
