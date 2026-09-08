@@ -1905,7 +1905,7 @@ data:
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
                     vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
-                    r_id, 'Transport Public de Voyageurs', 'حافلة نقل المسافرين والميني باص', false, '#FFFFFF', 'Standard White', true, 'BUS', true,
+                    r_id, 'Transport Public de Voyageurs', 'حافلة نقل المسافرين والميني باص', false, '#FFFFFF', 'Standard White', true, 'BUS', false,
                     ARRAY['Minibus', 'Bus', 'Coach', 'Van'],
                     ARRAY['Transport Public de Voyageurs', 'Navette & Transport Urbain'],
                     '[
