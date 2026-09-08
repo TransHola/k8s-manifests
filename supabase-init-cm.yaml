@@ -1405,170 +1405,157 @@ data:
         v_ae_id UUID;
         v_ma_id UUID;
 
-        -- Helper variables
         r_id UUID;
         c_id UUID;
         row_id UUID;
         row_id2 UUID;
         s_id UUID;
+        
+        r_rec RECORD;
     BEGIN
-        -- Get Country Config IDs
         SELECT id INTO v_us_id FROM public.country_configurations WHERE country_code = 'US';
         SELECT id INTO v_es_id FROM public.country_configurations WHERE country_code = 'ES';
         SELECT id INTO v_ae_id FROM public.country_configurations WHERE country_code = 'AE';
         SELECT id INTO v_ma_id FROM public.country_configurations WHERE country_code = 'MA';
 
-        -- Clean existing plate definitions to allow clean idempotent seeding
+        -- Clean existing plate definitions to reseed cleanly
         DELETE FROM public.country_license_plate_regions 
         WHERE country_config_id IN (v_us_id, v_es_id, v_ae_id, v_ma_id);
 
         --------------------------------------------------------------------------------
         -- 1. SPAIN (ES)
+        -- Format: 0000 · BBB (4 digits + 3 consonants, vowels excluded)
+        -- Categories: 
+        --  1) VTC - Chauffeur & Private Hire (Blue Rear Plate #1E3A8A)
+        --  2) Autobús / Autocar (Servicio Público - SP) (White Plate #FFFFFF + SP Badge)
         --------------------------------------------------------------------------------
         IF v_es_id IS NOT NULL THEN
-            -- Region: Madrid
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_es_id, 'Comunidad de Madrid', 'MD', 1) RETURNING id INTO r_id;
+            FOR r_rec IN 
+                SELECT * FROM (
+                    VALUES 
+                        ('Comunidad de Madrid', 'MD', 1),
+                        ('Cataluña', 'CT', 2),
+                        ('Andalucía', 'AN', 3),
+                        ('Illes Balears', 'IB', 4)
+                ) AS t(region_name, abbreviation, display_order)
+            LOOP
+                INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
+                VALUES (v_es_id, r_rec.region_name, r_rec.abbreviation, r_rec.display_order)
+                RETURNING id INTO r_id;
 
-            -- Category: VTC Blue Plate (Mandatory for Chauffeur / Private Hire in Spain)
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'VTC - Chauffeur & Private Hire', 'Vehículo de Turismo con Conductor (VTC)', true, '#1E3A8A', 'VTC Blue', true, 'VTC', false)
-            RETURNING id INTO c_id;
+                -- 1. VTC Category (Blue Plate)
+                INSERT INTO public.country_license_plate_categories (
+                    plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+                ) VALUES (
+                    r_id, 'VTC - Chauffeur & Private Hire', 'Vehículo de Turismo con Conductor (VTC)', true, '#1E3A8A', 'VTC Blue', true, 'VTC', false
+                ) RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
+                INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
+                
+                -- Slot 1: Euroband 'E'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '0000', '4', false, '44', true);
+                -- Slot 2: 4 Digits Format '0000'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Number', '0000', '4', false, '42', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'BBB', '3', false, '44', true);
+                -- Slot 3: 3 Consonants Format 'BBB'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'BBB', '3', false, '42', true);
 
-            -- Category: Servicio Público (SP) White Plate
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Servicio Público (SP Chauffeur)', 'Transporte de Viajeros (SP)', false, '#FFFFFF', 'Standard White', true, 'SP', false)
-            RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
+                -- 2. Autobús / Autocar (SP - Servicio Público) Category (White Plate + SP Badge)
+                INSERT INTO public.country_license_plate_categories (
+                    plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+                ) VALUES (
+                    r_id, 'Autobús / Autocar (SP Bus)', 'Transporte de Viajeros en Autobús (Servicio Público)', false, '#FFFFFF', 'Standard White', true, 'SP', false
+                ) RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '1234', '4', false, '44', true);
+                INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+                
+                -- Slot 1: Euroband 'E'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'BBB', '3', false, '44', true);
+                -- Slot 2: 4 Digits Format '0000'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Number', '0000', '4', false, '42', true);
 
-            -- Region: Andalucía (Málaga, Costa del Sol, Sevilla)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_es_id, 'Andalucía', 'AN', 2) RETURNING id INTO r_id;
-
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'VTC - Chauffeur & Private Hire', 'Vehículo de Turismo con Conductor (VTC)', true, '#1E3A8A', 'VTC Blue', true, 'VTC', false)
-            RETURNING id INTO c_id;
-
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '4589', '4', false, '44', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'LZX', '3', false, '44', true);
-
-            -- Region: Cataluña
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_es_id, 'Cataluña', 'CT', 3) RETURNING id INTO r_id;
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'VTC - Chauffeur & Private Hire', 'Vehículo de Turismo con Conductor (VTC)', true, '#1E3A8A', 'VTC Blue', true, 'VTC', false)
-            RETURNING id INTO c_id;
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Number', '7821', '4', false, '44', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Letters', 'MKR', '3', false, '44', true);
-
-            -- Region: Illes Balears
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_es_id, 'Illes Balears', 'IB', 4) RETURNING id INTO r_id;
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'VTC - Chauffeur & Private Hire', 'Vehículo de Turismo con Conductor (VTC)', true, '#1E3A8A', 'VTC Blue', true, 'VTC', false)
-            RETURNING id INTO c_id;
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Letters', 'E', '1', true, '26', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Number', '9102', '4', false, '44', true);
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold) VALUES (s_id, 'Letters', 'PRT', '3', false, '44', true);
+                -- Slot 3: 3 Consonants Format 'BBB'
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'BBB', '3', false, '42', true);
+            END LOOP;
         END IF;
 
         --------------------------------------------------------------------------------
         -- 2. UNITED STATES (US)
+        -- Categories:
+        --  1) Livery / Chauffeur (e.g. TLC, TCP, Livery)
+        --  2) Commercial Bus & Motorcoach
         --------------------------------------------------------------------------------
         IF v_us_id IS NOT NULL THEN
-            -- Region: District of Columbia (DC)
+            -- Region 1: New York (NY)
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_us_id, 'District of Columbia', 'DC', 1) RETURNING id INTO r_id;
+            VALUES (v_us_id, 'New York', 'NY', 1) RETURNING id INTO r_id;
 
-            -- Category: Livery & Limousine (L-Plate)
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Livery & Limousine (L-Plate)', 'Executive Livery & Chauffeur', true, '#1E293B', 'Executive Navy', true, 'LIMO', false)
-            RETURNING id INTO c_id;
+            -- NY TLC Livery
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'TLC Livery & Limousine', 'Taxi & Limousine Commission', true, '#F59E0B', 'TLC Gold', true, 'TLC', false
+            ) RETURNING id INTO c_id;
 
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Text', 'L', '1', true, '36', true);
+            VALUES (s_id, 'Text', 'T', '1', true, '36', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '12345', '5', false, '44', true);
+            VALUES (s_id, 'Number', '000000', '6', false, '42', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Region Abbr. (EN)', 'DC', '2', true, '20', true);
+            VALUES (s_id, 'Text', 'C', '1', true, '36', true);
 
-            -- Region: New York (NY)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_us_id, 'New York', 'NY', 2) RETURNING id INTO r_id;
-
-            -- Category: TLC Livery & Limousine
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'TLC Livery & Limousine', 'Taxi & Limousine Commission', true, '#F59E0B', 'TLC Gold', true, 'TLC', false)
-            RETURNING id INTO c_id;
+            -- NY Commercial Bus & Motorcoach
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Bus & Motorcoach', 'Passenger Bus, Charter & Shuttle', false, '#FFFFFF', 'Standard White', true, 'BUS', false
+            ) RETURNING id INTO c_id;
 
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Text', 'T', '1', true, '38', true);
+            VALUES (s_id, 'Text', 'BUS', '3', true, '26', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '123456', '6', false, '42', true);
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Text', 'C', '1', true, '38', true);
+            VALUES (s_id, 'Region Abbr. (EN)', 'NY', '2', true, '24', true);
 
-            -- Region: California (CA)
+
+            -- Region 2: California (CA)
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_us_id, 'California', 'CA', 3) RETURNING id INTO r_id;
+            VALUES (v_us_id, 'California', 'CA', 2) RETURNING id INTO r_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'TCP Executive Chauffeur', 'Transportation Charter Party', false, '#FFFFFF', 'Standard White', true, 'TCP', false)
-            RETURNING id INTO c_id;
+            -- CA TCP Chauffeur
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'TCP Executive Chauffeur', 'Transportation Charter Party', false, '#FFFFFF', 'Standard White', true, 'TCP', false
+            ) RETURNING id INTO c_id;
 
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1577,19 +1564,42 @@ data:
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Alpha Numeric', '7XYZ890', '7', false, '42', true);
+            VALUES (s_id, 'Alpha Numeric', '0AAA000', '7', false, '40', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Category Abbr. (EN)', 'TCP', '3', true, '14', true);
 
-            -- Region: Florida (FL)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_us_id, 'Florida', 'FL', 4) RETURNING id INTO r_id;
+            -- CA Bus & Motorcoach
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Bus & Motorcoach', 'Charter Bus & Passenger Transit', false, '#FFFFFF', 'Standard White', true, 'BUS', false
+            ) RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'For-Hire Luxury Transport', 'Commercial For-Hire Passenger', true, '#047857', 'Sunshine Green', true, 'HIRE', false)
-            RETURNING id INTO c_id;
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (EN)', 'CALIFORNIA', '10', false, '14', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Alpha Numeric', '0000000', '7', false, '40', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Category Abbr. (EN)', 'BUS', '3', true, '14', true);
+
+
+            -- Region 3: Florida (FL)
+            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
+            VALUES (v_us_id, 'Florida', 'FL', 3) RETURNING id INTO r_id;
+
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'For-Hire Luxury Transport', 'Commercial For-Hire Passenger', true, '#047857', 'Sunshine Green', true, 'HIRE', false
+            ) RETURNING id INTO c_id;
 
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
@@ -1598,26 +1608,93 @@ data:
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '54321', '5', false, '44', true);
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Region (EN)', 'FLORIDA', '7', false, '14', true);
+
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Bus & Motorcoach', 'Charter Bus & Passenger Transit', false, '#FFFFFF', 'Standard White', true, 'BUS', false
+            ) RETURNING id INTO c_id;
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Text', 'BUS', '3', true, '26', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (EN)', 'FLORIDA', '7', false, '14', true);
+
+
+            -- Region 4: District of Columbia (DC)
+            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
+            VALUES (v_us_id, 'District of Columbia', 'DC', 4) RETURNING id INTO r_id;
+
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Livery & Limousine (L-Plate)', 'Executive Livery & Chauffeur', true, '#1E293B', 'Executive Navy', true, 'LIMO', false
+            ) RETURNING id INTO c_id;
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Text', 'L', '1', true, '36', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region Abbr. (EN)', 'DC', '2', true, '20', true);
+
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Bus & Motorcoach', 'Charter Bus & Passenger Transit', false, '#FFFFFF', 'Standard White', true, 'BUS', false
+            ) RETURNING id INTO c_id;
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Text', 'BUS', '3', true, '26', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region Abbr. (EN)', 'DC', '2', true, '20', true);
         END IF;
 
         --------------------------------------------------------------------------------
         -- 3. UNITED ARAB EMIRATES (AE)
+        -- Categories:
+        --  1) Limousine & Luxury Chauffeur
+        --  2) Commercial Passenger Bus
         --------------------------------------------------------------------------------
         IF v_ae_id IS NOT NULL THEN
-            -- Region: Dubai
+            -- Dubai
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_ae_id, 'Dubai', 'DXB', 1) RETURNING id INTO r_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Limousine & Luxury Chauffeur', 'ليموزين فاخرة', true, '#1E293B', 'Dubai Executive', true, 'LIMO', true)
-            RETURNING id INTO c_id;
+            -- Dubai Limousine
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Limousine & Luxury Chauffeur', 'ليموزين فاخرة', true, '#1E293B', 'Dubai Executive', true, 'LIMO', true
+            ) RETURNING id INTO c_id;
 
-            -- Row 1: Header (Dubai / دبي)
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
@@ -1627,7 +1704,6 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Region (AR)', 'دبي', '3', false, '18', true);
 
-            -- Row 2: Main Code & Numbers
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id2;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Left', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
@@ -1635,21 +1711,52 @@ data:
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '12345', '5', false, '42', true);
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
 
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Right', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Category (AR)', 'ليموزين', '7', false, '14', true);
 
-            -- Region: Abu Dhabi
+            -- Dubai Commercial Bus
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Passenger Bus', 'حافلة ركاب تجارية', false, '#FFFFFF', 'Standard White', true, 'BUS', true
+            ) RETURNING id INTO c_id;
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (EN)', 'DUBAI', '5', false, '16', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (AR)', 'دبي', '3', false, '18', true);
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id2;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Category Abbr. (EN)', 'BUS', '3', true, '24', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Category (AR)', 'حافلة', '5', false, '14', true);
+
+
+            -- Abu Dhabi
             INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
             VALUES (v_ae_id, 'Abu Dhabi', 'AUH', 2) RETURNING id INTO r_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Commercial Chauffeur & Limousine', 'نقل سياحي وتجاري', true, '#DC2626', 'Abu Dhabi Red', true, 'LIMO', true)
-            RETURNING id INTO c_id;
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Chauffeur & Limousine', 'نقل سياحي وتجاري', true, '#DC2626', 'Abu Dhabi Red', true, 'LIMO', true
+            ) RETURNING id INTO c_id;
 
-            -- Row 1: Top Red Band with Abu Dhabi bilingual
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, true) RETURNING id INTO row_id;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
@@ -1663,82 +1770,103 @@ data:
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
             VALUES (s_id, 'Region (AR)', 'أبوظبي', '6', false, '16', true);
 
-            -- Row 2: Main 5 digits
             INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id2;
             INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Center', false) RETURNING id INTO s_id;
             INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '54321', '5', false, '44', true);
+            VALUES (s_id, 'Number', '00000', '5', false, '44', true);
+
+            INSERT INTO public.country_license_plate_categories (
+                plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+            ) VALUES (
+                r_id, 'Commercial Passenger Bus', 'حافلة نقل تجارية', false, '#FFFFFF', 'Standard White', true, 'BUS', true
+            ) RETURNING id INTO c_id;
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (EN)', 'ABU DHABI', '9', false, '14', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Region (AR)', 'أبوظبي', '6', false, '16', true);
+
+            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id2;
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Left', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Text', 'BUS', '3', true, '22', true);
+
+            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id2, 'Center', false) RETURNING id INTO s_id;
+            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+            VALUES (s_id, 'Number', '00000', '5', false, '42', true);
         END IF;
 
         --------------------------------------------------------------------------------
         -- 4. MOROCCO (MA)
+        -- Format: 00000 | أ / د | 00
+        -- Categories:
+        --  1) Transport Touristique (TGR Chauffeur) (Series 'أ')
+        --  2) Autocar & Bus de Voyageurs (Series 'د')
         --------------------------------------------------------------------------------
         IF v_ma_id IS NOT NULL THEN
-            -- Region: Rabat-Salé-Kénitra (Code 1)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_ma_id, 'Rabat-Salé-Kénitra', 'RSK', 1) RETURNING id INTO r_id;
+            FOR r_rec IN 
+                SELECT * FROM (
+                    VALUES 
+                        ('Rabat-Salé-Kénitra', '1', 1),
+                        ('Casablanca-Settat', '6', 2),
+                        ('Marrakech-Safi', '26', 3),
+                        ('Tanger-Tétouan-Al Hoceïma', '40', 4)
+                ) AS t(region_name, abbreviation, display_order)
+            LOOP
+                INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
+                VALUES (v_ma_id, r_rec.region_name, r_rec.abbreviation, r_rec.display_order)
+                RETURNING id INTO r_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Transport Touristique (TGR Chauffeur)', 'النقل السياحي الفاخر', true, '#047857', 'Chauffeur Green', true, 'TGR', true)
-            RETURNING id INTO c_id;
+                -- 1. Transport Touristique (TGR)
+                INSERT INTO public.country_license_plate_categories (
+                    plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+                ) VALUES (
+                    r_id, 'Transport Touristique (TGR Chauffeur)', 'النقل السياحي الفاخر', true, '#047857', 'Chauffeur Green', true, 'TGR', true
+                ) RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '12345', '5', false, '42', true);
+                INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+                
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Number', '00000', '5', false, '42', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'أ', '1', true, '36', true);
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'أ', '1', true, '36', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '1', '1', true, '38', true);
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Region Abbr. (EN)', r_rec.abbreviation, '2', false, '38', true);
 
-            -- Region: Casablanca-Settat (Code 6)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_ma_id, 'Casablanca-Settat', 'CAS', 2) RETURNING id INTO r_id;
 
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Transport Touristique (TGR Chauffeur)', 'النقل السياحي الفاخر', true, '#047857', 'Chauffeur Green', true, 'TGR', true)
-            RETURNING id INTO c_id;
+                -- 2. Autocar & Bus de Voyageurs (Commercial Bus / Public Coach Series 'د')
+                INSERT INTO public.country_license_plate_categories (
+                    plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual
+                ) VALUES (
+                    r_id, 'Autocar & Bus de Voyageurs', 'حافلة نقل المسافرين (النقل العمومي والسياحي)', false, '#FFFFFF', 'Standard White', true, 'BUS', true
+                ) RETURNING id INTO c_id;
 
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '54321', '5', false, '42', true);
+                INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
+                
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Number', '00000', '5', false, '42', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'أ', '1', true, '36', true);
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Letters', 'د', '1', true, '36', true);
 
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '6', '1', true, '38', true);
-
-            -- Region: Marrakech-Safi (Code 26)
-            INSERT INTO public.country_license_plate_regions (country_config_id, region_name, abbreviation, display_order)
-            VALUES (v_ma_id, 'Marrakech-Safi', 'RAK', 3) RETURNING id INTO r_id;
-
-            INSERT INTO public.country_license_plate_categories (plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual)
-            VALUES (r_id, 'Transport Touristique (TGR Chauffeur)', 'النقل السياحي الفاخر', true, '#047857', 'Chauffeur Green', true, 'TGR', true)
-            RETURNING id INTO c_id;
-
-            INSERT INTO public.country_license_plate_rows (plate_category_id, apply_color) VALUES (c_id, false) RETURNING id INTO row_id;
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Left', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '78901', '5', false, '42', true);
-
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Center', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Letters', 'أ', '1', true, '36', true);
-
-            INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
-            INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
-            VALUES (s_id, 'Number', '26', '2', true, '38', true);
+                INSERT INTO public.country_license_plate_slots (plate_row_id, position, apply_color) VALUES (row_id, 'Right', false) RETURNING id INTO s_id;
+                INSERT INTO public.country_license_plate_lines (plate_slot_id, field_type, placeholder, max_char, exact_match, font_size, is_bold)
+                VALUES (s_id, 'Region Abbr. (EN)', r_rec.abbreviation, '2', false, '38', true);
+            END LOOP;
         END IF;
 
-        RAISE NOTICE 'Successfully seeded authentic License Plate Formats & Styles for US, ES, AE, and MA!';
+        RAISE NOTICE 'Successfully seeded authentic License Plate Formats & Styles for ES, US, AE, and MA!';
     END $$;
 
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
