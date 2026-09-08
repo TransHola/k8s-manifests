@@ -1390,6 +1390,59 @@ data:
     -- PostgreSQL database dump complete
     --
 
+    -- Dynamic Activity Engine Workflows & Events
+    CREATE TABLE IF NOT EXISTS public.activity_engine_workflows (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        scope VARCHAR(20) NOT NULL CHECK (scope IN ('global', 'country')),
+        country_code VARCHAR(2) NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'archived')),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        nodes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        edges JSONB NOT NULL DEFAULT '[]'::jsonb,
+        settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        is_inherited BOOLEAN NOT NULL DEFAULT false,
+        overridden_node_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_by VARCHAR(255) DEFAULT 'system',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        published_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (scope, country_code, version, status)
+    );
+
+    CREATE TABLE IF NOT EXISTS public.activity_engine_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        trip_id VARCHAR(255) NOT NULL,
+        trip_plan_version INTEGER DEFAULT 1,
+        workflow_version INTEGER DEFAULT 1,
+        country_code VARCHAR(2) NULL,
+        fleet_company_id VARCHAR(255) NULL,
+        vehicle_id VARCHAR(255) NULL,
+        driver_id VARCHAR(255) NULL,
+        stop_id VARCHAR(255) NULL,
+        stop_sequence INTEGER NULL,
+        geofence_id VARCHAR(255) NULL,
+        previous_activity VARCHAR(100) NULL,
+        new_activity VARCHAR(100) NOT NULL,
+        scheduled_time TIMESTAMPTZ NULL,
+        actual_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        estimated_time TIMESTAMPTZ NULL,
+        schedule_variance_min NUMERIC NULL,
+        dwell_duration_sec INTEGER NULL,
+        trigger_source VARCHAR(50) NOT NULL,
+        confidence_score INTEGER NOT NULL DEFAULT 100,
+        is_confirmed BOOLEAN NOT NULL DEFAULT true,
+        is_estimated BOOLEAN NOT NULL DEFAULT false,
+        rule_id VARCHAR(100) NULL,
+        rule_name VARCHAR(255) NULL,
+        explanation TEXT NULL,
+        evidence JSONB DEFAULT '{}'::jsonb,
+        override_by VARCHAR(255) NULL,
+        override_reason TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
