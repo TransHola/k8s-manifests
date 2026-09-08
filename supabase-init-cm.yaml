@@ -2289,6 +2289,28 @@ data:
         created_at TIMESTAMPTZ DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS public.country_driver_licenses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        country_config_id UUID NOT NULL REFERENCES public.country_configurations(id) ON DELETE CASCADE,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        air_brake BOOLEAN DEFAULT false,
+        passenger_transport BOOLEAN DEFAULT false,
+        hazmat BOOLEAN DEFAULT false,
+        school_bus BOOLEAN DEFAULT false,
+        tanker BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.country_driver_license_endorsements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        license_id UUID NOT NULL REFERENCES public.country_driver_licenses(id) ON DELETE CASCADE,
+        code TEXT NOT NULL,
+        description TEXT,
+        is_required BOOLEAN DEFAULT false
+    );
+
     CREATE TABLE IF NOT EXISTS public.legal_agreements (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -2667,6 +2689,7 @@ data:
             'billing_invoices', 'billing_payouts', 'payment_methods',
             'dispatch_assignments', 'dispatch_anomalies', 'operator_notifications',
             'legal_agreements', 'country_configurations', 'country_document_requirements',
+            'country_driver_licenses', 'country_driver_license_endorsements',
             'country_license_plate_regions', 'country_license_plate_categories',
             'country_license_plate_lines', 'country_license_plate_rows', 'country_license_plate_slots',
             'document_types', 'documents', 'global_settings', 'profiles'
