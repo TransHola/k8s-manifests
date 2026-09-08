@@ -1881,7 +1881,7 @@ data:
                     plate_region_id, type, localized_type, has_color, color, color_name, has_abbreviation, abbreviation, bilingual,
                     vehicle_types, service_types, service_vehicle_relations
                 ) VALUES (
-                    r_id, 'Transport Touristique (TGR)', 'النقل السياحي الفاخر', true, '#047857', 'Chauffeur Green', true, 'TGR', true,
+                    r_id, 'Transport Touristique (TGR)', 'النقل السياحي الفاخر', false, '#FFFFFF', 'Standard White', true, 'TGR', true,
                     ARRAY['Sedan', 'SUV', 'Van'],
                     ARRAY['Transport Touristique (TGR)', 'Transport Touristique Van'],
                     '[
