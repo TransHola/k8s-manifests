@@ -2758,6 +2758,550 @@ data:
     END;
     $$;
 
+    -- ============================================================================
+    -- TransHola — Comprehensive Document Requirements Seed
+    -- Predefining Company, Vehicle, and Driver Documents for:
+    -- 1. GLOBAL (Global Baseline Master Configuration)
+    -- 2. AE (United Arab Emirates)
+    -- 3. SA (Saudi Arabia)
+    -- 4. MA (Morocco)
+    -- 5. ES (Spain)
+    -- 6. US (United States)
+    -- ============================================================================
+
+
+    -- 1. Ensure country_configurations has all 6 operating/global entities
+    INSERT INTO country_configurations (country_code, country_name, currency_code, currency_symbol, is_active)
+    VALUES
+        ('GLOBAL', 'Global Master Preset', 'USD', '$', true),
+        ('AE', 'United Arab Emirates', 'AED', 'AED', true),
+        ('SA', 'Saudi Arabia', 'SAR', '﷼', true),
+        ('MA', 'Morocco', 'MAD', 'DH', true),
+        ('ES', 'Spain', 'EUR', '€', true),
+        ('US', 'United States', 'USD', '$', true)
+    ON CONFLICT (country_code) DO UPDATE
+    SET country_name = EXCLUDED.country_name,
+        is_active = true,
+        updated_at = NOW();
+
+    -- 2. Upsert standard document_types across company, vehicle, and driver categories
+    INSERT INTO document_types (code, name, category, requires_expiration)
+    VALUES
+        -- COMPANY
+        ('trade_license', 'Commercial Trade License / Certificate of Incorporation', 'company', true),
+        ('tax_certificate', 'Tax ID / VAT Registration Certificate', 'company', false),
+        ('operator_license', 'Passenger Transport Operator Authority / License', 'company', true),
+        ('commercial_liability_insurance', 'General Passenger Liability Insurance Policy', 'company', true),
+        ('bank_verification', 'Corporate Bank Account Verification Letter', 'company', false),
+        ('articles_of_association', 'Articles of Association & Beneficial Ownership', 'company', false),
+        ('social_insurance_compliance', 'Social Insurance & Labor Compliance Certificate', 'company', true),
+        ('vtc_license', 'VTC Operator Accreditation (Autorización VTC)', 'company', true),
+        ('liability_insurance', 'Commercial Passenger Insurance', 'company', true),
+
+        -- VEHICLE
+        ('vehicle_registration', 'Vehicle Registration Document / Title / Logbook', 'vehicle', true),
+        ('vehicle_insurance', 'Commercial Passenger Motor Insurance Policy', 'vehicle', true),
+        ('vehicle_inspection', 'Annual Roadworthiness Technical Inspection Certificate', 'vehicle', true),
+        ('vehicle_operating_permit', 'Passenger Transport Vehicle Livery / Permit', 'vehicle', true),
+        ('vehicle_telematics', 'Telematics & AVL GPS Tracking Compliance Certificate', 'vehicle', false),
+        ('emissions_certificate', 'Environmental Emissions Compliance Certificate', 'vehicle', true),
+        ('itv_inspection', 'Technical Vehicle Inspection (ITV)', 'vehicle', true),
+
+        -- DRIVER
+        ('driving_license', 'Commercial Driver''s License (CDL / Passenger Endorsed)', 'driver', true),
+        ('national_identity', 'National Identity Document (Emirates ID / National ID / DNI)', 'driver', true),
+        ('driver_permit_card', 'Professional Chauffeur / Driver Transport Authority Permit', 'driver', true),
+        ('driver_work_authorization', 'Residency Visa & Work Authorization Permit', 'driver', true),
+        ('medical_certificate', 'Commercial Driver Medical Fitness & Vision Certificate', 'driver', true),
+        ('background_check', 'Criminal Background Check & Police Clearance Certificate', 'driver', true),
+        ('drug_alcohol_test', 'Drug & Alcohol Screening Test Report', 'driver', true),
+        ('defensive_driving_cert', 'Defensive Driving & Passenger Safety Certification', 'driver', true)
+    ON CONFLICT (code) DO UPDATE
+    SET name = EXCLUDED.name,
+        category = EXCLUDED.category,
+        requires_expiration = EXCLUDED.requires_expiration;
+
+    -- 3. Helper function to seed document requirements cleanly
+    CREATE OR REPLACE FUNCTION tmp_seed_doc_requirement(
+        p_country_code text,
+        p_type_code text,
+        p_custom_label text,
+        p_status text,
+        p_description text,
+        p_settings jsonb
+    ) RETURNS void AS $$
+    DECLARE
+        v_config_id uuid;
+        v_type_id uuid;
+    BEGIN
+        SELECT id INTO v_config_id FROM country_configurations WHERE country_code = p_country_code;
+        SELECT id INTO v_type_id FROM document_types WHERE code = p_type_code;
+
+        IF v_config_id IS NOT NULL AND v_type_id IS NOT NULL THEN
+            -- Delete any existing requirement for this config & type to ensure clean overwrite
+            DELETE FROM country_document_requirements 
+            WHERE country_config_id = v_config_id AND document_type_id = v_type_id;
+
+            INSERT INTO country_document_requirements (
+                country_config_id,
+                document_type_id,
+                custom_label,
+                status,
+                description,
+                settings
+            ) VALUES (
+                v_config_id,
+                v_type_id,
+                p_custom_label,
+                p_status,
+                p_description,
+                p_settings
+            );
+        END IF;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- GLOBAL PRESETS (country_code = 'GLOBAL')
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'trade_license', 'Commercial Trade License', 'Required', 
+        'Valid government business registration or commercial trade license establishing legal operating status.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'tax_certificate', 'Tax Identification / VAT Certificate', 'Required', 
+        'Official corporate Tax Identification Number (TIN) or VAT registration certificate from the revenue authority.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'operator_license', 'Transport Operator Authority / License', 'Required', 
+        'Official passenger carrier operating permit or commercial transport authority issued by the competent ministry.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":45,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'commercial_liability_insurance', 'General Passenger Liability Insurance', 'Required', 
+        'Comprehensive passenger liability insurance policy covering bodily injury and property damage for all scheduled fleet trips.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'bank_verification', 'Corporate Bank Account Verification', 'Optional', 
+        'Official bank letter or account statement confirming company bank details for dispatch payouts and escrow settlement.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'articles_of_association', 'Articles of Association & Beneficial Ownership', 'Optional', 
+        'Constitutional charter, articles of incorporation, and beneficial ownership registry identifying legal controllers.', 
+        '{"scope":{"applies_to":"company_admin","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":25,"max_files":5},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'vehicle_registration', 'Vehicle Registration Document / Title', 'Required', 
+        'Official state or national vehicle registration title proving legal ownership or registered lease.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'vehicle_insurance', 'Commercial Passenger Motor Insurance', 'Required', 
+        'Comprehensive motor insurance policy explicitly endorsing for-hire passenger transportation with active coverage.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'vehicle_inspection', 'Periodic Safety & Technical Inspection', 'Required', 
+        'Annual government or certified safety inspection certificate proving vehicle mechanical roadworthiness.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'vehicle_operating_permit', 'Vehicle Passenger Livery Permit', 'Required', 
+        'Municipal or regional vehicle authorization permit tag or decal for commercial passenger service.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'vehicle_telematics', 'Telematics & GPS Tracking Compliance', 'Optional', 
+        'Certification of active certified GPS/AVL telemetry tracking equipment streaming live coordinate data.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'driving_license', 'Commercial Driver''s License (CDL)', 'Required', 
+        'Valid government driver license with passenger vehicle, minibus, or commercial transport authorization endorsement.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'national_identity', 'National Identity Card / Passport', 'Required', 
+        'Valid government-issued national identity document, passport, or resident work entitlement permit.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'driver_permit_card', 'Chauffeur / Driver Transport Authority Permit', 'Required', 
+        'Official passenger transport driver badge or municipal chauffeur credential.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'medical_certificate', 'Driver Medical Fitness & Vision Certificate', 'Required', 
+        'Certified medical practitioner assessment confirming cardiovascular, physical, and visual fitness for commercial driving.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'background_check', 'Criminal Background Clearance Certificate', 'Required', 
+        'Official police good-conduct certificate or criminal records check issued within the preceding 12 months.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'drug_alcohol_test', 'Drug & Alcohol Screening Test', 'Optional', 
+        'Certified toxicological 10-panel substance screening panel report with negative test results.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":15},"review":{"max_resubmissions":1,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('GLOBAL', 'defensive_driving_cert', 'Defensive Driving Certification', 'Optional', 
+        'Accredited defensive driving, first aid, and passenger crisis management training certificate.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- UNITED ARAB EMIRATES (AE)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('AE', 'trade_license', 'UAE Commercial Trade License (DED / Freezone)', 'Required', 
+        'Commercial license issued by Dubai Department of Economy and Tourism (DET/DED) or UAE Freezone authority.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'tax_certificate', 'FTA VAT Registration Certificate (TRN)', 'Required', 
+        'Federal Tax Authority (FTA) certificate displaying verified 15-digit Tax Registration Number (TRN).', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'operator_license', 'RTA / ITC Commercial Transport Operator Permit', 'Required', 
+        'Commercial transport permit issued by Dubai Roads and Transport Authority (RTA) or Abu Dhabi Integrated Transport Centre (ITC).', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'commercial_liability_insurance', 'Corporate Fleet Comprehensive Insurance', 'Required', 
+        'Comprehensive corporate fleet policy covering passenger liability, driver bodily injury, and third-party property across all UAE Emirates.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'bank_verification', 'UAE Corporate Bank Letter & IBAN', 'Required', 
+        'Official UAE central bank-compliant bank reference letter confirming company account and IBAN for AED payouts.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('AE', 'vehicle_registration', 'Mulkiya (UAE Vehicle Registration Card)', 'Required', 
+        'Valid UAE Mulkiya card (front and back) issued by Dubai Police, Abu Dhabi Police, or Ministry of Interior.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'vehicle_insurance', 'Commercial Passenger Comprehensive Insurance', 'Required', 
+        'Comprehensive UAE motor insurance certificate with passenger liability endorsement and UAE territorial cover.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'vehicle_inspection', 'RTA / Tasjeel Vehicle Technical Passing Certificate', 'Required', 
+        'Annual technical passing inspection report from Tasjeel, Shamil, or certified UAE inspection testing facility.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'vehicle_operating_permit', 'RTA / ITC Commercial Vehicle Permit (V-Permit)', 'Required', 
+        'Commercial passenger vehicle permit card and RFID windshield tag issued by RTA / ITC.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'vehicle_telematics', 'SecurePath / Asateel Telematics Compliance', 'Required', 
+        'Official certificate proving active GPS tracking device connected to Dubai SecurePath or Abu Dhabi Asateel platform.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('AE', 'driving_license', 'UAE Driving License (Front & Back)', 'Required', 
+        'Valid UAE driving license (Light Bus, Heavy Bus, or Chauffeur endorsed) front and back.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'national_identity', 'Emirates ID (Front & Back)', 'Required', 
+        'Federal Authority for Identity, Citizenship, Customs and Port Security (ICP) Emirates ID card.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'driver_permit_card', 'RTA / ITC Professional Chauffeur Permit', 'Required', 
+        'Professional driver card and limousine/bus driver permit issued by Dubai RTA or Abu Dhabi ITC.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'driver_work_authorization', 'Residency Visa & MoHRE Labor Card', 'Required', 
+        'Valid UAE residence visa with designation matching professional driver sponsored by the operator.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'background_check', 'Police Clearance / Good Conduct Certificate', 'Required', 
+        'Certificate of Good Conduct issued by Dubai Police or UAE Ministry of Interior within the last 12 months.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('AE', 'medical_certificate', 'RTA Approved Driver Medical Fitness Certificate', 'Required', 
+        'Occupational health examination and toxicological drug screening report from an approved UAE medical facility.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- SAUDI ARABIA (SA)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('SA', 'trade_license', 'Commercial Registration (CR / Sijil Tijari - MoC)', 'Required', 
+        'Commercial Registration certificate issued by the Saudi Ministry of Commerce.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'operator_license', 'TGA Passenger Transport License (Al-Naql)', 'Required', 
+        'Transport General Authority license for specialized passenger and commercial transport operations in Saudi Arabia.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":45,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'tax_certificate', 'ZATCA Tax & Zakat Certificate', 'Required', 
+        'Zakat, Tax and Customs Authority clearance certificate in the Kingdom of Saudi Arabia.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'social_insurance_compliance', 'GOSI Social Insurance & Nitaqat Certificate', 'Required', 
+        'General Organization for Social Insurance active compliance certificate and Saudization quota documentation.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'commercial_liability_insurance', 'Commercial Fleet Liability Insurance', 'Required', 
+        'Comprehensive corporate fleet policy covering passenger transport liability compliant with Saudi insurance regulations.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'bank_verification', 'Saudi Corporate Bank IBAN Certificate', 'Required', 
+        'Official Saudi bank letter or IBAN verification certificate for corporate SAR account operations.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('SA', 'vehicle_registration', 'Istemara (Vehicle Registration Card)', 'Required', 
+        'Valid vehicle registration issued through Absher / Moroor (Ministry of Interior Traffic Department).', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'vehicle_inspection', 'Fahas Al-Douri (Periodic Inspection - MVPI)', 'Required', 
+        'Valid Motor Vehicle Periodic Inspection (Fahas) sticker and inspection pass certificate.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'vehicle_insurance', 'Najm / CCHI Comprehensive Insurance', 'Required', 
+        'Commercial passenger vehicle insurance policy registered on the Najm database with passenger cover.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'vehicle_operating_permit', 'TGA Operating Card (Bitaqat Tashgheel)', 'Required', 
+        'Operating card issued by the Transport General Authority linked directly to the vehicle plate number.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'vehicle_telematics', 'WASL Telematics Tracking Certificate', 'Required', 
+        'Certificate proving active tracking and telemetry streaming to the national WASL platform.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('SA', 'driving_license', 'Saudi Driving License (Public Transport / Heavy)', 'Required', 
+        'Valid Saudi driving license with commercial passenger transport classification.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'national_identity', 'National ID / Resident Iqama (Muqeem)', 'Required', 
+        'Valid Saudi National ID for citizens or resident Iqama with professional driver profession.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'driver_permit_card', 'TGA Driver Professional Card (Bitaqat Sa''iq)', 'Required', 
+        'Professional driver card issued by the Transport General Authority.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'background_check', 'Criminal Record Clearance (Sahifat Al-Sawabeq)', 'Required', 
+        'Clean criminal record certificate obtained through the Amn / Absher portal.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('SA', 'medical_certificate', 'Efada Medical Fitness & Drug Test Report', 'Required', 
+        'Medical examination and toxicological drug test accredited on the national Efada platform.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- MOROCCO (MA)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('MA', 'trade_license', 'Registre du Commerce (Modèle J)', 'Required', 
+        'Extrait d''immatriculation au Registre du Commerce récent (moins de 3 mois) délivré par le Tribunal de Commerce.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'tax_certificate', 'Attestation Identifiant Fiscal (IF) & Patente', 'Required', 
+        'Attestation d''inscription à la taxe professionnelle (Patente) et identifiant fiscal de la DGI.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'operator_license', 'Agrément Ministère du Transport (Touristique / Voyageurs)', 'Required', 
+        'Décision d''agrément d''exploitation de transport touristique ou routier délivrée par le Ministère du Transport.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'commercial_liability_insurance', 'Assurance Responsabilité Civile Professionnelle', 'Required', 
+        'Police d''assurance couvrant la responsabilité civile exploitation et transport de voyageurs au Maroc.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'social_insurance_compliance', 'Attestation d''Affiliation CNSS', 'Required', 
+        'Attestation de régularité de cotisations délivrée par la Caisse Nationale de Sécurité Sociale (CNSS).', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'bank_verification', 'Attestation de Relevé d''Identité Bancaire (RIB)', 'Required', 
+        'Attestation bancaire officielle certifiant le Relevé d''Identité Bancaire (RIB) en dirhams marocains.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('MA', 'vehicle_registration', 'Carte Grise (Certificat d''Immatriculation)', 'Required', 
+        'Carte grise marocaine originale (recto-verso) au nom de la société de transport ou contrat de leasing.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'vehicle_inspection', 'Visite Technique Périodique (Contrôle Technique)', 'Required', 
+        'Certificat de contrôle technique périodique délivré par un centre agréé en cours de validité.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'vehicle_insurance', 'Assurance Automobile Transport de Personnes', 'Required', 
+        'Attestation et quittance d''assurance automobile avec mention transport de personnes pour compte d''autrui.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'vehicle_operating_permit', 'Carte d''Exploitation du Véhicule', 'Required', 
+        'Carte d''autorisation d''exploitation délivrée par la Direction des Transports Routiers.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'emissions_certificate', 'Vignette Taxe Spéciale Annuelle (TSAV)', 'Optional', 
+        'Quittance de paiement de la taxe spéciale annuelle sur les véhicules automobiles.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('MA', 'driving_license', 'Permis de Conduire Marocain (Catégorie B/D)', 'Required', 
+        'Permis de conduire biométrique en cours de validité (recto-verso) correspondant au gabarit du véhicule.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'national_identity', 'Carte Nationale d''Identité Électronique (CNIE)', 'Required', 
+        'Carte d''identité nationale marocaine ou carte d''immatriculation pour résidents étrangers.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'driver_permit_card', 'Carte Professionnelle de Conducteur', 'Required', 
+        'Carte de conducteur professionnel délivrée par le Ministère du Transport et de la Logistique.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'background_check', 'Fiche Anthropométrique / Casier Judiciaire (Bulletin N°3)', 'Required', 
+        'Fiche anthropométrique de la DGSN ou extrait de casier judiciaire datant de moins de 3 mois.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('MA', 'medical_certificate', 'Certificat Médical d''Aptitude Visuelle et Physique', 'Required', 
+        'Certificat médical d''aptitude à la conduite professionnelle délivré par un médecin agréé.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- SPAIN (ES)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('ES', 'trade_license', 'NIF de Empresa y Escrituras de Constitución', 'Required', 
+        'Tarjeta de Identificación Fiscal (NIF/CIF) y escritura pública de constitución inscrita en el Registro Mercantil.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'operator_license', 'Tarjeta de Transporte de Viajeros (VTC / VD)', 'Required', 
+        'Autorización de transporte público de viajeros (licencia VTC o VD) emitida por el Ministerio de Fomento o Comunidad Autónoma.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":45,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'commercial_liability_insurance', 'Seguro de Responsabilidad Civil de Explotación', 'Required', 
+        'Póliza y justificante de pago de seguro de responsabilidad civil patronal y de explotación comercial.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'tax_certificate', 'Certificado de Estar al Corriente con Hacienda (AEAT)', 'Required', 
+        'Certificado positivo de encontrarse al corriente de obligaciones tributarias con la Agencia Estatal de Administración Tributaria.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'social_insurance_compliance', 'Certificado de Corriente con la Seguridad Social (TGSS)', 'Required', 
+        'Certificado acreditativo de estar al corriente de pagos con la Tesorería General de la Seguridad Social (TGSS).', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'bank_verification', 'Certificado de Titularidad Bancaria e IBAN de Empresa', 'Required', 
+        'Certificado bancario emitido por entidad financiera acreditando la titularidad de la cuenta corriente en euros.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('ES', 'vehicle_registration', 'Permiso de Circulación DGT', 'Required', 
+        'Permiso de circulación oficial expedido por la Dirección General de Tráfico a nombre de la empresa o arrendamiento.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'vehicle_inspection', 'Ficha Técnica e Informe Favorable ITV en Vigor', 'Required', 
+        'Tarjeta de Inspección Técnica de Vehículos (ITV) con el sello y periodicidad reglamentaria superada.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'vehicle_insurance', 'Seguro Obligatorio y Complementario de Viajeros (SOV)', 'Required', 
+        'Póliza en vigor que incluya expresamente el Seguro Obligatorio de Viajeros (SOV) para servicio público.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'vehicle_operating_permit', 'Copia Certificada de Autorización VTC vinculada', 'Required', 
+        'Documento oficial que acredita la adscripción reglamentaria del vehículo a la autorización de transporte VTC.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'emissions_certificate', 'Distintivo Ambiental DGT', 'Optional', 
+        'Distintivo ambiental reglamentario adherido (Cero, Eco o C) según normativa municipal de bajas emisiones.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('ES', 'driving_license', 'Permiso de Conducir Español / UE (Clase B/D)', 'Required', 
+        'Permiso de conducción expedido en España o país de la UE (anverso y reverso) con la antigüedad mínima exigida.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'national_identity', 'DNI / NIE con Autorización de Trabajo', 'Required', 
+        'Documento Nacional de Identidad o Número de Identidad de Extranjero con permiso de trabajo por cuenta ajena en vigor.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'driver_permit_card', 'Certificado de Aptitud Profesional (CAP Viajeros)', 'Required', 
+        'Tarjeta de cualificación del conductor (CAP) en vigor o acreditación VTC autonómica.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'background_check', 'Certificado Negativo Delitos Sexuales y Penales', 'Required', 
+        'Certificado negativo del Registro Central de Delincuentes Sexuales y Penales expedido por el Ministerio de Justicia.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('ES', 'medical_certificate', 'Informe de Aptitud Psicofísica (Psicotécnico)', 'Required', 
+        'Certificado médico de aptitud psicofísica expedido por un Centro de Reconocimiento de Conductores autorizado.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- UNITED STATES (US)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Company
+    SELECT tmp_seed_doc_requirement('US', 'trade_license', 'Certificate of Incorporation / State Registration', 'Required', 
+        'Official Certificate of Good Standing or Articles of Incorporation filed with the Secretary of State.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":15,"max_files":2},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'operator_license', 'USDOT & FMCSA Operating Authority (MC Number)', 'Required', 
+        'Active USDOT registration and FMCSA Operating Authority for For-Hire Passenger Motor Carrier.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":45,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'tax_certificate', 'Federal Employer Identification Number (EIN / SS-4)', 'Required', 
+        'Official IRS EIN confirmation letter identifying the corporate taxpayer entity.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'commercial_liability_insurance', 'Commercial Auto Liability (Form BMC-91X / COI)', 'Required', 
+        'Certificate of Liability Insurance meeting federal $1.5M / $5M minimum passenger coverage requirements.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":20,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'social_insurance_compliance', 'State Workers'' Compensation Insurance Policy', 'Required', 
+        'Statutory Workers'' Compensation insurance policy certificate for all employed drivers and staff.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'bank_verification', 'Corporate Bank Account Verification Letter', 'Optional', 
+        'Official bank letter confirming corporate checking account details and routing number for ACH settlements.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":false,"min_validity_months":0,"renewal_window_days":0,"notify_before_days":0},"review":{"max_resubmissions":3,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Vehicle
+    SELECT tmp_seed_doc_requirement('US', 'vehicle_registration', 'Vehicle Registration Certificate (State DMV)', 'Required', 
+        'Current state Department of Motor Vehicles registration showing commercial or for-hire vehicle classification.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'vehicle_insurance', 'Commercial Vehicle Insurance Identification Card', 'Required', 
+        'State commercial automobile insurance card listing policy number and vehicle VIN.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'vehicle_inspection', 'DOT Annual Vehicle Inspection (49 CFR Part 396)', 'Required', 
+        'Annual commercial motor vehicle safety inspection report signed by a qualified inspector.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":10,"warn_before_days":3,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'vehicle_operating_permit', 'City / State For-Hire Vehicle Livery Decal & Permit', 'Required', 
+        'City TLC, state PUC, or regional airport livery permit decal authorizing passenger pickup.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":7,"warn_before_days":2,"triggers":["before_expiry"]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'emissions_certificate', 'State Emissions Inspection Certificate', 'Optional', 
+        'Annual emissions compliance testing certificate where required by state environmental regulations.', 
+        '{"scope":{"applies_to":"all","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    -- Driver
+    SELECT tmp_seed_doc_requirement('US', 'driving_license', 'Commercial Driver''s License (CDL) with Passenger Endorsement', 'Required', 
+        'State-issued CDL Class A/B/C with Passenger (P) endorsement, or applicable Chauffeur license.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'national_identity', 'Social Security Card & Work Authorization', 'Required', 
+        'Valid US Passport, Permanent Resident Card (I-551), or Employment Authorization Document (EAD).', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":2},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'driver_permit_card', 'City For-Hire / TLC Chauffeur License', 'Optional', 
+        'Municipal driver credential for for-hire passenger operations (e.g. NYC TLC, Chicago Chauffeur).', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":5,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":2,"immediate_action_on_failure":"notify_only"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"warn"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'medical_certificate', 'DOT Medical Examiner''s Certificate (Form MCSA-5876)', 'Required', 
+        'Valid Medical Examiner''s Certificate issued by a certified medical provider on the National Registry.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"flag_admin"},"grace_period":{"allowed":true,"duration_days":14,"warn_before_days":5,"triggers":["before_expiry"]},"enforcement":{"final_action":"suspend"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'background_check', 'Motor Vehicle Record (MVR 3-Year History)', 'Required', 
+        'Certified driving history abstract demonstrating clean driving record with no major violations.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf","jpg","png"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":30},"review":{"max_resubmissions":3,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    SELECT tmp_seed_doc_requirement('US', 'drug_alcohol_test', 'DOT 10-Panel Drug & Alcohol Screening Test', 'Required', 
+        'Verified negative drug and alcohol test result from a certified SAMHSA testing laboratory.', 
+        '{"scope":{"applies_to":"all_drivers","visible_to":"operator_admin","review_process":"manual_verification"},"upload":{"accepted_formats":["pdf"],"max_size_mb":10,"max_files":1},"validity":{"has_expiry":true,"min_validity_months":1,"renewal_window_days":30,"notify_before_days":15},"review":{"max_resubmissions":1,"immediate_action_on_failure":"block_pending"},"grace_period":{"allowed":false,"duration_days":0,"warn_before_days":0,"triggers":[]},"enforcement":{"final_action":"block"}}');
+
+    -- Clean up helper function
+    DROP FUNCTION tmp_seed_doc_requirement;
+
+
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 
