@@ -3364,6 +3364,57 @@ data:
     END
     $$;
 
+    -- Organizational Nodes & Custom Roles
+    CREATE TABLE IF NOT EXISTS public.org_nodes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID REFERENCES public.company_profiles(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        node_type_id TEXT,
+        parent_id UUID REFERENCES public.org_nodes(id) ON DELETE SET NULL,
+        path TEXT DEFAULT '',
+        depth INTEGER DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.roles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID REFERENCES public.company_profiles(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        permissions JSONB DEFAULT '[]'::jsonb,
+        is_system BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    ALTER TABLE public.staff_profiles 
+        ADD COLUMN IF NOT EXISTS name TEXT,
+        ADD COLUMN IF NOT EXISTS phone TEXT,
+        ADD COLUMN IF NOT EXISTS department TEXT,
+        ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES public.org_nodes(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS location TEXT,
+        ADD COLUMN IF NOT EXISTS location_id UUID,
+        ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+        ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+    ALTER TABLE public.org_nodes ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'org_nodes' AND policyname = 'Public access to org_nodes') THEN
+            CREATE POLICY "Public access to org_nodes" ON public.org_nodes USING (true) WITH CHECK (true);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'roles' AND policyname = 'Public access to roles') THEN
+            CREATE POLICY "Public access to roles" ON public.roles USING (true) WITH CHECK (true);
+        END IF;
+    END
+    $$;
+
     GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 
