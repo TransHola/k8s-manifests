@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-18-billing-policy-snapshot"
+        rollout: "2026-09-18-anti431-cookie-hygiene"
       labels:
         app: superadmin
     spec:
