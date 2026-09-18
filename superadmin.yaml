@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "v5-high-speed-operators"
+        rollout: "2026-09-18-billing-policy-snapshot"
       labels:
         app: superadmin
     spec:

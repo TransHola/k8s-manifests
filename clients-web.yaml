@@ -11,6 +11,8 @@ spec:
       app: clients-web
   template:
     metadata:
+      annotations:
+        rollout: "2026-09-18-billing-policy-snapshot"
       labels:
         app: clients-web
     spec:
