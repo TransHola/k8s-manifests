@@ -52,6 +52,18 @@ spec:
                   psql -h localhost -p 5432 -U postgres -d postgres -c "
                     ALTER TABLE public.company_profiles ADD COLUMN IF NOT EXISTS risk_level VARCHAR(255) DEFAULT 'Unknown';
                     ALTER TABLE public.company_profiles ADD COLUMN IF NOT EXISTS risk_factors JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS first_name text;
+                    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_name text;
+                    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone_number text;
+                    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
+                    CREATE TABLE IF NOT EXISTS public.sms_otps (
+                      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                      phone_number text NOT NULL,
+                      otp_hash text NOT NULL,
+                      expires_at timestamptz NOT NULL,
+                      created_at timestamptz DEFAULT now()
+                    );
+                    GRANT ALL ON TABLE public.sms_otps TO postgres, anon, authenticated, service_role;
 
                     DROP FUNCTION IF EXISTS public.admin_get_all_companies() CASCADE;
                     CREATE OR REPLACE FUNCTION public.admin_get_all_companies()
