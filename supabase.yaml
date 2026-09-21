@@ -50,6 +50,9 @@ spec:
                 - |
                   (until pg_isready -h localhost -p 5432 -U postgres -d postgres; do sleep 1; done
                   psql -h localhost -p 5432 -U postgres -d postgres -c "
+                    ALTER TABLE public.company_profiles ADD COLUMN IF NOT EXISTS risk_level VARCHAR(255) DEFAULT 'Unknown';
+                    ALTER TABLE public.company_profiles ADD COLUMN IF NOT EXISTS risk_factors JSONB DEFAULT '[]'::jsonb;
+
                     DROP FUNCTION IF EXISTS public.admin_get_all_companies() CASCADE;
                     CREATE OR REPLACE FUNCTION public.admin_get_all_companies()
                     RETURNS SETOF public.company_profiles
