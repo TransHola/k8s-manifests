@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-21-auth-self-healing-and-credentials"
+        rollout: "2026-09-21-auth-v1-same-origin-rewrites"
       labels:
         app: superadmin
     spec:
