@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-18-anti431-cookie-hygiene"
+        rollout: "2026-09-21-auth-self-healing-and-credentials"
       labels:
         app: superadmin
     spec:

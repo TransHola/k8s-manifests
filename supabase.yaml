@@ -25,7 +25,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "v4-clean-db-with-rpcs"
+        rollout: "v5-align-superadmin-credentials-2026"
       labels:
         app: supabase-db
     spec:
@@ -70,6 +70,34 @@ spec:
                     GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, anon, authenticated, service_role;
                     GRANT EXECUTE ON FUNCTION public.admin_get_all_companies() TO postgres, anon, authenticated, service_role;
                     GRANT EXECUTE ON FUNCTION public.admin_get_all_vehicles() TO postgres, anon, authenticated, service_role;
+
+                    -- Synchronize SuperAdmin Root Master Credentials (TransHola2026!)
+                    UPDATE auth.users 
+                    SET encrypted_password = '$2a$10$26HuDSQaI.ArAWnZsJ3pnONhJYQEuCWYyBqGZEFmw9Eidq27lOdrC',
+                        email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+                        updated_at = NOW()
+                    WHERE email = 'admin@transhola.com';
+
+                    INSERT INTO auth.users (
+                      id, instance_id, email, encrypted_password, email_confirmed_at, 
+                      raw_app_meta_data, raw_user_meta_data, created_at, updated_at, role, aud
+                    )
+                    SELECT 
+                      '2557bace-be05-466c-a68a-2b6190fd6389', '00000000-0000-0000-0000-000000000000',
+                      'admin@transhola.com', '$2a$10$26HuDSQaI.ArAWnZsJ3pnONhJYQEuCWYyBqGZEFmw9Eidq27lOdrC',
+                      NOW(), '{"provider":"email","providers":["email"]}', 
+                      '{"role":"super_admin","full_name":"Fathallah Lahlou"}', 
+                      NOW(), NOW(), 'authenticated', 'authenticated'
+                    WHERE NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@transhola.com');
+
+                    INSERT INTO public.profiles (id, email, full_name, role, status)
+                    VALUES ('2557bace-be05-466c-a68a-2b6190fd6389', 'admin@transhola.com', 'Fathallah Lahlou', 'superadmin', 'Active')
+                    ON CONFLICT (id) DO UPDATE SET role = 'superadmin', status = 'Active';
+
+                    INSERT INTO public.staff_profiles (id, email, full_name, role, status)
+                    VALUES ('2557bace-be05-466c-a68a-2b6190fd6389', 'admin@transhola.com', 'TransHola SuperAdmin', 'owner', 'active')
+                    ON CONFLICT (id) DO UPDATE SET role = 'owner', status = 'active';
+
                     NOTIFY pgrst, 'reload schema';
                   "
                   ) > /tmp/poststart.log 2>&1 &
