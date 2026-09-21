@@ -12,13 +12,13 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-21-modern-phone-and-registration"
+        rollout: "2026-09-21-ttl-live-rollout-v1"
       labels:
         app: clients-web
     spec:
       containers:
       - name: clients-web
-        image: ghcr.io/transhola/clients-web:latest
+        image: ttl.sh/transhola-clients-web-2026:24h
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
