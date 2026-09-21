@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-21-ttl-live-rollout-v1"
+        rollout: "2026-09-21-map-fix-zero-carto-api-key-free-basemaps"
       labels:
         app: clients-web
     spec:
