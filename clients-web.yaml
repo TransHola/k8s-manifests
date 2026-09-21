@@ -12,13 +12,13 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-18-anti431-cookie-hygiene"
+        rollout: "2026-09-21-modern-phone-and-registration"
       labels:
         app: clients-web
     spec:
       containers:
       - name: clients-web
-        image: localhost:5000/clients-web:latest
+        image: ghcr.io/transhola/clients-web:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
