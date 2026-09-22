@@ -12,13 +12,13 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-21-auth-v1-same-origin-rewrites"
+        rollout: "2026-09-22-staff-management-interactive-v1"
       labels:
         app: superadmin
     spec:
       containers:
       - name: superadmin
-        image: localhost:5000/superadmin:latest
+        image: ttl.sh/transhola-superadmin-2026:24h
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
