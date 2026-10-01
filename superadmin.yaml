@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        rollout: "2026-09-22-staff-management-interactive-v1"
+        rollout: "2026-10-01-recovery-zero-delay-v1"
       labels:
         app: superadmin
     spec:
