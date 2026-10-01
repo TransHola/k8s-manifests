@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: postgis/postgis:16-alpine
+        image: postgres:16-alpine
         env:
         - name: POSTGRES_PASSWORD
           value: "postgres"
