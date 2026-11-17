@@ -238,6 +238,49 @@ spec:
                     \$\$;
                     GRANT EXECUTE ON FUNCTION public.register_client_account(text, text, text, text, text, text, boolean) TO postgres, anon, authenticated, service_role;
 
+                    CREATE OR REPLACE FUNCTION public.update_client_password_by_email(
+                      p_email text,
+                      p_new_password text
+                    )
+                    RETURNS jsonb
+                    LANGUAGE plpgsql
+                    SECURITY DEFINER
+                    SET search_path TO public, auth, extensions
+                    AS \$\$
+                    DECLARE
+                      v_norm_email text;
+                      v_user record;
+                    BEGIN
+                      v_norm_email := LOWER(TRIM(COALESCE(p_email, '')));
+                      IF v_norm_email = '' OR POSITION('@' IN v_norm_email) = 0 THEN
+                        RETURN jsonb_build_object('error', 'Valid email address is required.');
+                      END IF;
+                      IF LENGTH(COALESCE(p_new_password, '')) < 8 THEN
+                        RETURN jsonb_build_object('error', 'Password must be at least 8 characters.');
+                      END IF;
+                      SELECT id, email, raw_user_meta_data, raw_app_meta_data
+                        INTO v_user
+                        FROM auth.users
+                       WHERE LOWER(TRIM(email)) = v_norm_email
+                       LIMIT 1;
+                      IF v_user.id IS NULL THEN
+                        RETURN jsonb_build_object('error', 'No account found with this email address.');
+                      END IF;
+                      UPDATE auth.users
+                         SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+                             updated_at = NOW()
+                       WHERE id = v_user.id;
+                      RETURN jsonb_build_object(
+                        'id', v_user.id,
+                        'email', v_user.email,
+                        'user_metadata', COALESCE(v_user.raw_user_meta_data, '{}'::jsonb),
+                        'app_metadata', COALESCE(v_user.raw_app_meta_data, '{"provider":"email","providers":["email"]}'::jsonb)
+                      );
+                    END;
+                    \$\$;
+                    REVOKE ALL ON FUNCTION public.update_client_password_by_email(text, text) FROM PUBLIC, anon, authenticated;
+                    GRANT EXECUTE ON FUNCTION public.update_client_password_by_email(text, text) TO postgres, service_role;
+
                     NOTIFY pgrst, 'reload schema';
                   "
                   ) > /tmp/poststart.log 2>&1 &
