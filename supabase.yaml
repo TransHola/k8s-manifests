@@ -432,6 +432,112 @@ spec:
                     REVOKE ALL ON FUNCTION public.delete_corporate_portal_user(uuid, uuid) FROM PUBLIC, anon, authenticated;
                     GRANT EXECUTE ON FUNCTION public.delete_corporate_portal_user(uuid, uuid) TO postgres, service_role;
 
+                    CREATE TABLE IF NOT EXISTS public.client_notifications (
+                      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                      user_id uuid NOT NULL,
+                      organization_id uuid,
+                      category text NOT NULL DEFAULT 'system',
+                      severity text NOT NULL DEFAULT 'info',
+                      title text NOT NULL,
+                      message text NOT NULL,
+                      action_url text DEFAULT '/bookings',
+                      action_label text DEFAULT 'View Details',
+                      is_read boolean NOT NULL DEFAULT false,
+                      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+                      created_at timestamptz NOT NULL DEFAULT now()
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_client_notifications_user_created ON public.client_notifications(user_id, created_at DESC);
+                    CREATE INDEX IF NOT EXISTS idx_client_notifications_org_created ON public.client_notifications(organization_id, created_at DESC);
+                    ALTER TABLE public.client_notifications ENABLE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS "service_role_full_access_client_notifs" ON public.client_notifications;
+                    CREATE POLICY "service_role_full_access_client_notifs" ON public.client_notifications TO service_role USING (true) WITH CHECK (true);
+                    DROP POLICY IF EXISTS "users_read_own_client_notifs" ON public.client_notifications;
+                    CREATE POLICY "users_read_own_client_notifs" ON public.client_notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
+                    GRANT ALL ON TABLE public.client_notifications TO postgres, service_role;
+                    GRANT SELECT, UPDATE ON TABLE public.client_notifications TO authenticated;
+
+                    CREATE OR REPLACE FUNCTION public.fn_notify_client_on_booking_change()
+                    RETURNS trigger
+                    LANGUAGE plpgsql
+                    SECURITY DEFINER
+                    SET search_path TO public
+                    AS \$\$
+                    DECLARE
+                      v_org_id uuid;
+                      v_ref text;
+                      v_route text;
+                    BEGIN
+                      IF NEW.customer_id IS NULL THEN
+                        RETURN NEW;
+                      END IF;
+
+                      SELECT NULLIF(preferences->>'organizationId', '')::uuid
+                        INTO v_org_id
+                        FROM public.profiles
+                       WHERE id = NEW.customer_id
+                       LIMIT 1;
+
+                      v_ref := COALESCE(NEW.booking_details->>'ref', 'TH-' || UPPER(SUBSTRING(NEW.id::text FROM 1 FOR 6)));
+                      v_route := TRIM(CONCAT_WS(' → ', NULLIF(SPLIT_PART(COALESCE(NEW.pickup_address, ''), ',', 1), ''), NULLIF(SPLIT_PART(COALESCE(NEW.dropoff_address, ''), ',', 1), '')));
+                      IF v_route = '' THEN
+                        v_route := 'Charter Itinerary';
+                      END IF;
+
+                      IF TG_OP = 'INSERT' THEN
+                        IF LOWER(COALESCE(NEW.status, '')) = 'quotation' THEN
+                          INSERT INTO public.client_notifications (user_id, organization_id, category, severity, title, message, action_url, action_label, metadata)
+                          VALUES (
+                            NEW.customer_id,
+                            COALESCE(v_org_id, NEW.customer_id),
+                            'quotation',
+                            'info',
+                            'Quotation Saved (' || v_ref || ')',
+                            'Your official rate lock for ' || v_route || ' is ready for review.',
+                            '/quotations',
+                            'Review Quote',
+                            jsonb_build_object('booking_id', NEW.id, 'status', NEW.status)
+                          );
+                        ELSE
+                          INSERT INTO public.client_notifications (user_id, organization_id, category, severity, title, message, action_url, action_label, metadata)
+                          VALUES (
+                            NEW.customer_id,
+                            COALESCE(v_org_id, NEW.customer_id),
+                            'booking',
+                            'success',
+                            'Booking Confirmed (' || v_ref || ')',
+                            'Your reservation for ' || v_route || ' has been received by dispatch.',
+                            '/bookings',
+                            'Track Booking',
+                            jsonb_build_object('booking_id', NEW.id, 'status', NEW.status)
+                          );
+                        END IF;
+                      ELSIF TG_OP = 'UPDATE' AND COALESCE(OLD.status, '') IS DISTINCT FROM COALESCE(NEW.status, '') THEN
+                        INSERT INTO public.client_notifications (user_id, organization_id, category, severity, title, message, action_url, action_label, metadata)
+                        VALUES (
+                          NEW.customer_id,
+                          COALESCE(v_org_id, NEW.customer_id),
+                          CASE WHEN LOWER(COALESCE(NEW.status, '')) = 'quotation' THEN 'quotation' ELSE 'dispatch' END,
+                          CASE WHEN LOWER(COALESCE(NEW.status, '')) = 'cancelled' THEN 'warning' ELSE 'success' END,
+                          'Trip Status Updated: ' || INITCAP(REPLACE(COALESCE(NEW.status, 'updated'), '_', ' ')),
+                          'Reference ' || v_ref || ' (' || v_route || ') is now ' || REPLACE(COALESCE(NEW.status, 'updated'), '_', ' ') || '.',
+                          '/bookings',
+                          'View Trip',
+                          jsonb_build_object('booking_id', NEW.id, 'status', NEW.status)
+                        );
+                      END IF;
+
+                      RETURN NEW;
+                    EXCEPTION WHEN OTHERS THEN
+                      RETURN NEW;
+                    END;
+                    \$\$;
+
+                    DROP TRIGGER IF EXISTS trg_bookings_client_notification ON public.bookings;
+                    CREATE TRIGGER trg_bookings_client_notification
+                      AFTER INSERT OR UPDATE ON public.bookings
+                      FOR EACH ROW
+                      EXECUTE FUNCTION public.fn_notify_client_on_booking_change();
+
                     NOTIFY pgrst, 'reload schema';
                   "
                   ) > /tmp/poststart.log 2>&1 &
